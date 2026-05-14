@@ -1,0 +1,4 @@
+PyQt6>=6.11,<6.12
+py7zr>=1.1,<2
+pyqtdarktheme==2.1.0
+requests>=2.34,<3
