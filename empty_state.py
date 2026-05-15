@@ -60,7 +60,7 @@ class EmptyState(QWidget):
 
         try:
             self._btn.clicked.disconnect()
-        except RuntimeError:
+        except (RuntimeError, TypeError):
             pass
 
         if action_label and action_callback:
