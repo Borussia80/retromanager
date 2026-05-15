@@ -1,97 +1,119 @@
 ---
-# Flatpak manifest for retromanager.
+# Flatpak manifest for retromanager — Fedora KDE6 runtime (f44).
 #
 # Prerequisites:
-#   flatpak install flathub org.kde.Platform//6.7 org.kde.Sdk//6.7
-#   flatpak install flathub org.freedesktop.Sdk.Extension.python312//24.08
+#   sudo dnf install flatpak-builder
+#   flatpak install fedora org.fedoraproject.KDE6Platform//f44
+#   flatpak install fedora org.fedoraproject.KDE6Sdk//f44
 #
-# Build:
-#   flatpak-builder --user --install --force-clean build-flatpak \
+# Build & install locally:
+#   flatpak-builder --user --install --force-clean \
+#       build-flatpak \
 #       packaging/flatpak/io.github.Borussia80.retromanager.yml
-#
-# Generate pip sources (requires flatpak-pip-generator):
-#   python flatpak-pip-generator --runtime org.kde.Sdk//6.7 \
-#       PyQt6 "PyQt6-Qt6>=6.11" py7zr requests \
-#       -o packaging/flatpak/python-modules.json
 
 app-id: io.github.Borussia80.retromanager
-runtime: org.kde.Platform
-runtime-version: "6.7"
-sdk: org.kde.Sdk
-sdk-extensions:
-  - org.freedesktop.Sdk.Extension.python312
+runtime: org.fedoraproject.KDE6Platform
+runtime-version: f44
+sdk: org.fedoraproject.KDE6Sdk
 command: retromanager
 
 finish-args:
-  # Display (Wayland + X11 fallback)
   - --share=ipc
   - --socket=fallback-x11
   - --socket=wayland
-  # Network access (Archive.org downloads, GitHub update check)
   - --share=network
-  # Home dir read for ROM imports; downloads go to ~/ROMs by default
   - --filesystem=home
-  # DBus for desktop notifications (optional)
   - --talk-name=org.freedesktop.Notifications
 
-build-options:
-  append-path: /usr/lib/sdk/python312/bin
-  env:
-    PIP_DISABLE_PIP_VERSION_CHECK: "1"
-    PYTHON: python3.12
-
 modules:
-  # ── Python pip packages ─────────────────────────────────────────────────────
-  # Run flatpak-pip-generator to regenerate python-modules.json with exact
-  # SHA256 hashes before submitting to Flathub.
-  - name: python-packages
+  # ── Python wheel dependencies (Python 3.14 / manylinux_2_17 x86_64) ─────────
+  - name: python-deps
     buildsystem: simple
     build-commands:
-      - pip3 install --no-build-isolation --prefix=/app py7zr requests
-    # Replace with generated sources from flatpak-pip-generator:
+      - pip3 install --no-index --find-links=. --prefix=/app
+          pyqt6-6.9.1-cp39-abi3-manylinux_2_28_x86_64.whl
+          pyqt6_qt6-6.9.2-py3-none-manylinux_2_28_x86_64.whl
+          py7zr-1.1.0-py3-none-any.whl
+          texttable-1.7.0-py2.py3-none-any.whl
+          multivolumefile-0.2.3-py3-none-any.whl
+          inflate64-1.0.4-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+          pycryptodomex-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+          brotli-1.2.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+          requests-2.34.2-py3-none-any.whl
+          certifi-2026.4.22-py3-none-any.whl
+          charset_normalizer-3.4.7-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+          idna-3.15-py3-none-any.whl
+          urllib3-2.7.0-py3-none-any.whl
     sources:
       - type: file
-        url: https://files.pythonhosted.org/packages/source/p/py7zr/py7zr-1.1.0.tar.gz
-        sha256: PLACEHOLDER_sha256_py7zr
+        url: https://files.pythonhosted.org/packages/d5/78/92f3c46440a83ebe22ae614bd6792e7b052bcb58ff128f677f5662015184/pyqt6-6.9.1-cp39-abi3-manylinux_2_28_x86_64.whl
+        sha256: 37884df27f774e2e1c0c96fa41e817a222329b80ffc6241725b0dc8c110acb35
       - type: file
-        url: https://files.pythonhosted.org/packages/source/r/requests/requests-2.34.0.tar.gz
-        sha256: PLACEHOLDER_sha256_requests
+        url: https://files.pythonhosted.org/packages/a8/07/21f7dc188e35b46631707f3b40ace5643a0e03a8e1e446854826d08a04ae/pyqt6_qt6-6.9.2-py3-none-manylinux_2_28_x86_64.whl
+        sha256: 9abfc0ee4a8293a6442128ae3f87f68e82e2a949d7b9caabd98c86ba5679ab48
+      - type: file
+        url: https://files.pythonhosted.org/packages/f0/9c/762284710ead9076eeecd55fb60509c19cd1f4bea811df5f3603725b44cb/py7zr-1.1.0-py3-none-any.whl
+        sha256: 5921bc30fb72b5453aafe3b2183664c08ef508cde2655988d5e9bd6078353ef7
+      - type: file
+        url: https://files.pythonhosted.org/packages/24/99/4772b8e00a136f3e01236de33b0efda31ee7077203ba5967fcc76da94d65/texttable-1.7.0-py2.py3-none-any.whl
+        sha256: 72227d592c82b3d7f672731ae73e4d1f88cd8e2ef5b075a7a7f01a23a3743917
+      - type: file
+        url: https://files.pythonhosted.org/packages/22/31/ec5f46fd4c83185b806aa9c736e228cb780f13990a9cf4da0beb70025fcc/multivolumefile-0.2.3-py3-none-any.whl
+        sha256: 237f4353b60af1703087cf7725755a1f6fcaeeea48421e1896940cd1c920d678
+      - type: file
+        url: https://files.pythonhosted.org/packages/90/72/0b6035302e9c33f004240a50cb6e2e1fc7bb1f2b415b02d939c551bdd06b/inflate64-1.0.4-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+        sha256: 6f0993214dea0738c557fa56c13cd9083aef0097a201d726c21984ad7f577514
+      - type: file
+        url: https://files.pythonhosted.org/packages/c8/a9/8862616a85cf450d2822dbd4fff1fcaba90877907a6ff5bc2672cafe42f8/pycryptodomex-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+        sha256: f489c4765093fb60e2edafdf223397bc716491b2b69fe74367b70d6999257a5c
+      - type: file
+        url: https://files.pythonhosted.org/packages/f3/2f/0976d5b097ff8a22163b10617f76b2557f15f0f39d6a0fe1f02b1a53e92b/brotli-1.2.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+        sha256: cf9cba6f5b78a2071ec6fb1e7bd39acf35071d90a81231d67e92d637776a6a63
+      - type: file
+        url: https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl
+        sha256: 2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0
+      - type: file
+        url: https://files.pythonhosted.org/packages/22/30/7cd8fdcdfbc5b869528b079bfb76dcdf6056b1a2097a662e5e8c04f42965/certifi-2026.4.22-py3-none-any.whl
+        sha256: 3cb2210c8f88ba2318d29b0388d1023c8492ff72ecdde4ebdaddbb13a31b1c4a
+      - type: file
+        url: https://files.pythonhosted.org/packages/47/5c/032c2d5a07fe4d4855fea851209cca2b6f03ebeb6d4e3afdb3358386a684/charset_normalizer-3.4.7-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+        sha256: bd6c2a1c7573c64738d716488d2cdd3c00e340e4835707d8fdb8dc1a66ef164e
+      - type: file
+        url: https://files.pythonhosted.org/packages/d2/23/408243171aa9aaba178d3e2559159c24c1171a641aa83b67bdd3394ead8e/idna-3.15-py3-none-any.whl
+        sha256: 048adeaf8c2d788c40fee287673ccaa74c24ffd8dcf09ffa555a2fbb59f10ac8
+      - type: file
+        url: https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl
+        sha256: 9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897
 
   # ── retromanager application ────────────────────────────────────────────────
   - name: retromanager
     buildsystem: simple
     build-commands:
-      # Install Python sources
       - install -d /app/lib/retromanager
+      - cp *.py *.pyw /app/lib/retromanager/
+      - cp -r ui/ /app/lib/retromanager/
+      - "[ -d resources ] && cp -r resources/ /app/lib/retromanager/ || true"
+      - "[ -f resources.rcc ] && cp resources.rcc /app/lib/retromanager/ || true"
       - |
-        cp *.py *.pyw /app/lib/retromanager/
-        cp -r ui/ resources/ /app/lib/retromanager/
-        cp resources.rcc /app/lib/retromanager/
-      # Wrapper script
-      - |
-        install -Dm755 /dev/stdin /app/bin/retromanager <<'EOF'
+        cat > /app/bin/retromanager << 'WRAPPER'
         #!/usr/bin/env bash
         exec python3 /app/lib/retromanager/app.pyw "$@"
-        EOF
-      # Desktop entry
+        WRAPPER
+        chmod +x /app/bin/retromanager
       - |
-        sed 's|Exec=retromanager|Exec=retromanager|' \
-            packaging/flatpak/../retromanager.desktop \
-            > /app/share/applications/io.github.Borussia80.retromanager.desktop
+        install -Dm644 packaging/retromanager.desktop \
+            /app/share/applications/io.github.Borussia80.retromanager.desktop
         sed -i 's|^Icon=.*|Icon=io.github.Borussia80.retromanager|' \
             /app/share/applications/io.github.Borussia80.retromanager.desktop
-      # Icons
       - |
         for size in 16 32 48 64 128 256 512; do
-          install -Dm644 \
-              resources/icons/icon_${size}.png \
-              /app/share/icons/hicolor/${size}x${size}/apps/io.github.Borussia80.retromanager.png
+          f="resources/icons/icon_${size}.png"
+          [ -f "$f" ] && install -Dm644 "$f" \
+              "/app/share/icons/hicolor/${size}x${size}/apps/io.github.Borussia80.retromanager.png"
         done
-      # AppStream metainfo
       - install -Dm644 packaging/flatpak/io.github.Borussia80.retromanager.appdata.xml \
             /app/share/metainfo/io.github.Borussia80.retromanager.appdata.xml
-
     sources:
       - type: git
         url: https://github.com/Borussia80/retromanager.git
-        branch: main
+        tag: v2.1.0
