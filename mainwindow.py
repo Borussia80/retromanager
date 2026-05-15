@@ -186,13 +186,18 @@ class MainWindow(QMainWindow):
             self.tw_romsList.setHorizontalHeaderItem(i, QTableWidgetItem(h))
 
         hh = self.tw_romsList.horizontalHeader()
+        hh.setMinimumSectionSize(80)
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
         hh.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-        hh.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        hh.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        hh.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        self.tw_romsList.setColumnWidth(2, 48)
+        hh.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        hh.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        hh.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+        self.tw_romsList.setColumnWidth(1, 100)
+        self.tw_romsList.setColumnWidth(2, 70)
+        self.tw_romsList.setColumnWidth(3, 260)
+        self.tw_romsList.setColumnWidth(4, 100)
+        self.tw_romsList.setColumnWidth(5, 260)
 
         self._toggleTechnicalColumns(False)
 
