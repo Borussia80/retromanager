@@ -31,6 +31,7 @@ modules:
     buildsystem: simple
     build-commands:
       - pip3 install --no-index --find-links=. --prefix=/app
+          pyqt6_sip-13.11.1-cp314-cp314-manylinux1_x86_64.manylinux_2_5_x86_64.whl
           pyqt6-6.9.1-cp39-abi3-manylinux_2_28_x86_64.whl
           pyqt6_qt6-6.9.2-py3-none-manylinux_2_28_x86_64.whl
           py7zr-1.1.0-py3-none-any.whl
@@ -45,6 +46,9 @@ modules:
           idna-3.15-py3-none-any.whl
           urllib3-2.7.0-py3-none-any.whl
     sources:
+      - type: file
+        url: https://files.pythonhosted.org/packages/03/72/5a3d9ffef0caa7e1bc7a35d6300f6099bfccd1d8a485b4320ba20013a2d9/pyqt6_sip-13.11.1-cp314-cp314-manylinux1_x86_64.manylinux_2_5_x86_64.whl
+        sha256: 353d613129316e9f7eda6bbe821deb7b7ffa14483499189171fd8a246873f9ac
       - type: file
         url: https://files.pythonhosted.org/packages/d5/78/92f3c46440a83ebe22ae614bd6792e7b052bcb58ff128f677f5662015184/pyqt6-6.9.1-cp39-abi3-manylinux_2_28_x86_64.whl
         sha256: 37884df27f774e2e1c0c96fa41e817a222329b80ffc6241725b0dc8c110acb35
