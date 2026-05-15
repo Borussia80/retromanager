@@ -754,6 +754,8 @@ class MainWindow(QMainWindow):
             self._hideEmptyState()
             self.statusBar().showMessage(f"{fmt_count(visible)} visíveis", 3000)
 
+    _REGION_DISPLAY = {"Europe": "Europa", "USA": "USA", "Japan": "Japão"}
+
     def _showFilterEmptyState(self, region: str | None, keywords: list[str]):
         platform = self._current_platform() or "esta plataforma"
         if region:
@@ -766,9 +768,10 @@ class MainWindow(QMainWindow):
                 "Nenhum ROM desta plataforma tem essa tag de região. "
                 "Tente outra plataforma ou remova o filtro."
             )
+            region_lbl = self._REGION_DISPLAY.get(region, region)
             self._showEmptyState(
                 "⊘",
-                f"Nenhum ROM com tag {region} em {short}",
+                f"Nenhum ROM com tag {region_lbl} em {short}",
                 desc,
                 "Mostrar todas as regiões",
                 self._clearRegionFilter,
