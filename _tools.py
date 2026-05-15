@@ -254,10 +254,14 @@ class DownloadWorker(QObject):
     import os, zipfile
     from py7zr import SevenZipFile
 
-    extract_dir = os.path.dirname(archive_path)
+    extract_dir = os.path.realpath(os.path.dirname(archive_path))
     DebugHelper.print(DebugType.TYPE_INFO, f"Unzipping [{archive_path}]...", "unzip")
     if archive_path.lower().endswith('.zip'):
       with zipfile.ZipFile(archive_path) as archive:
+        for member in archive.namelist():
+          dest = os.path.realpath(os.path.join(extract_dir, member))
+          if not dest.startswith(extract_dir + os.sep) and dest != extract_dir:
+            raise ValueError(f"ZIP slip bloqueado: {member!r}")
         archive.extractall(extract_dir)
     else:
       with SevenZipFile(archive_path) as archive:
