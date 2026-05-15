@@ -26,6 +26,7 @@ from retroarch_helper import RetroArchHelper
 from lutris_helper import LutrisHelper
 from empty_state import EmptyState
 from rom_detail_panel import RomDetailPanel
+import library_service
 import mame_names as _mame_names
 
 
@@ -531,7 +532,7 @@ class MainWindow(QMainWindow):
         self.tw_romsList.setSortingEnabled(False)
         self.tw_romsList.setRowCount(0)
 
-        downloaded_set = self._scan_downloaded(platform_name)
+        downloaded_set = library_service.scan_downloaded(self.settings, platform_name)
         all_roms = list(self.platforms.getRoms(platform_name))
         self._current_platform_roms = all_roms
         self._current_platform_downloaded = downloaded_set
@@ -563,7 +564,7 @@ class MainWindow(QMainWindow):
         display_name = friendly if friendly else rom_name
 
         rom_name_item = QTableWidgetItem(display_name)
-        tooltip = self._buildRomSummary(platform, display_name, rom_data)
+        tooltip = library_service.build_rom_summary(platform, display_name, rom_data, Tools.convertSizeToReadable)
         if friendly:
             tooltip = f"{rom_name}\n{tooltip}"  # prepend shortname for MAME
         rom_name_item.setToolTip(tooltip)
@@ -627,7 +628,7 @@ class MainWindow(QMainWindow):
         self.tw_romsList.setRowCount(0)
 
         favs = self._favorites.all()
-        downloaded_set = self._scan_downloaded()
+        downloaded_set = library_service.scan_downloaded(self.settings)
 
         if not favs:
             self._showTablePlaceholder(
@@ -697,27 +698,6 @@ class MainWindow(QMainWindow):
             self.download_panel.add_item(rom_name)
         self._updateStatusbarQueueText()
 
-    def _scan_downloaded(self, platform: str | None = None) -> set[str]:
-        """Return stems of files present in the download dir, platform subdir, and import paths."""
-        base = self.settings.get('download_path')
-        dirs_to_scan = [base]
-        if platform:
-            dirs_to_scan.append(os.path.join(base, platform))
-        for imp in self.settings.get('import_paths'):
-            dirs_to_scan.append(imp)
-            if platform:
-                dirs_to_scan.append(os.path.join(imp, platform))
-
-        stems: set[str] = set()
-        for d in dirs_to_scan:
-            try:
-                for f in os.listdir(d):
-                    if os.path.isfile(os.path.join(d, f)):
-                        stems.add(os.path.splitext(f)[0])
-            except OSError:
-                pass
-        return stems
-
     def _showEmptyState(self, icon: str, title: str, description: str,
                         action_label: str = None, action_callback=None):
         self._empty_state_w.set_content(icon, title, description, action_label, action_callback)
@@ -760,7 +740,7 @@ class MainWindow(QMainWindow):
                 it = self.tw_romsList.item(i, 0)
                 name = it.text()
                 shortname = it.data(Qt.ItemDataRole.UserRole + 3) or ""
-                show = self._romMatchesFilters(name, keywords, region, shortname)
+                show = library_service.rom_matches_filters(name, keywords, region, shortname)
                 self.tw_romsList.setRowHidden(i, not show)
                 if show:
                     visible += 1
@@ -813,29 +793,6 @@ class MainWindow(QMainWindow):
         if self.pb_usa.isChecked(): return "USA"
         if self.pb_jpn.isChecked(): return "Japan"
         return None
-
-    def _romMatchesFilters(self, rom_name: str, keywords: list[str], region: str | None,
-                           shortname: str = "") -> bool:
-        target = rom_name.lower()
-        if region and f"({region})".lower() not in target:
-            return False
-        if not keywords:
-            return True
-        # Match keywords against display name OR original shortname (for MAME)
-        alt = shortname.lower()
-        return all(kw in target or (alt and kw in alt) for kw in keywords)
-
-    def _buildRomSummary(self, platform_name: str, rom_name: str, rom_data: dict) -> str:
-        import re
-        tags = re.findall(r'\(([^)]+)\)', rom_name)
-        tags_text = ", ".join(tags) if tags else "—"
-        return (
-            f"{rom_name}\n"
-            f"Plataforma: {platform_name}\n"
-            f"Tags: {tags_text}\n"
-            f"Tamanho: {Tools.convertSizeToReadable(rom_data['size'])}\n"
-            f"Formato: {rom_data['format']}"
-        )
 
     def _row_shortname(self, row: int) -> str:
         """Return the catalogue key (shortname) for a table row, works for MAME and consoles."""
@@ -1020,38 +977,6 @@ class MainWindow(QMainWindow):
     # RetroArch / Lutris integration
     # ──────────────────────────────────────────────
 
-    def _find_rom_file(self, rom_name: str) -> str | None:
-        """Find a downloaded ROM file by stem, checking platform subdir, base dir, and import paths."""
-        base = self.settings.get('download_path')
-        platform = self._current_platform()
-        dirs = []
-        if platform:
-            dirs.append(os.path.join(base, platform))
-        dirs.append(base)
-        for imp in self.settings.get('import_paths'):
-            if platform:
-                dirs.append(os.path.join(imp, platform))
-            dirs.append(imp)
-
-        for d in dirs:
-            try:
-                entries = os.listdir(d)
-            except OSError:
-                continue
-            for f in entries:
-                stem, ext = os.path.splitext(f)
-                if stem == rom_name and ext.lower() not in ('.zip', '.7z', '.part'):
-                    full = os.path.join(d, f)
-                    if os.path.isfile(full):
-                        return full
-            for f in entries:
-                stem, ext = os.path.splitext(f)
-                if stem == rom_name and ext.lower() in ('.zip', '.7z'):
-                    full = os.path.join(d, f)
-                    if os.path.isfile(full):
-                        return full
-        return None
-
     def _current_platform(self) -> str | None:
         sel = self.lw_platforms.selectedItems()
         if not sel:
@@ -1071,7 +996,7 @@ class MainWindow(QMainWindow):
         platform = self._current_platform()
         if not platform:
             return
-        rom_path = self._find_rom_file(rom_name)
+        rom_path = library_service.find_rom_file(self.settings, rom_name, self._current_platform())
         if not rom_path:
             QMessageBox.warning(
                 self, "Arquivo não encontrado",
@@ -1088,7 +1013,7 @@ class MainWindow(QMainWindow):
         platform = self._current_platform()
         if not platform:
             return
-        rom_path = self._find_rom_file(rom_name)
+        rom_path = library_service.find_rom_file(self.settings, rom_name, self._current_platform())
         if not rom_path:
             QMessageBox.warning(
                 self, "Arquivo não encontrado",
@@ -1114,7 +1039,7 @@ class MainWindow(QMainWindow):
         platform = self._current_platform()
         if not platform:
             return
-        rom_path = self._find_rom_file(rom_name)
+        rom_path = library_service.find_rom_file(self.settings, rom_name, self._current_platform())
         if not rom_path:
             QMessageBox.warning(
                 self, "Arquivo não encontrado",
@@ -1146,7 +1071,7 @@ class MainWindow(QMainWindow):
         platform = self._current_platform()
         if not platform:
             return
-        rom_path = self._find_rom_file(rom_name)
+        rom_path = library_service.find_rom_file(self.settings, rom_name, self._current_platform())
         if not rom_path:
             QMessageBox.warning(
                 self, "Arquivo não encontrado",
