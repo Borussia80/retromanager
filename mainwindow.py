@@ -557,7 +557,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"{platform_name}: {fmt_count(total)}", 5000)
 
     def _insert_rom_row(self, row: int, platform: str, rom_name: str,
-                        rom_data: dict, downloaded_set: set):
+                        rom_data, downloaded_set: set):
         # For MAME, show the friendly title from the name cache when available
         is_mame = platform == "Arcade - MAME"
         friendly = self._mame_names.get(rom_name) if is_mame and self._mame_names else None

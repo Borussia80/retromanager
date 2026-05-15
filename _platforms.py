@@ -71,4 +71,7 @@ class PlatformsHelper():
 
 
   def getRoms(self, platform_name: str):
-    return self._platformsCache[platform_name].items()
+    return (
+        (name, RomEntry.from_dict(data))
+        for name, data in self._platformsCache[platform_name].items()
+    )
