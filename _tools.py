@@ -12,7 +12,6 @@ from _debug import *
 
 class CacheGenerator():
   class PlatformWorker(QObject):
-    platform = []
     finished = pyqtSignal(str)
 
 
@@ -23,49 +22,42 @@ class CacheGenerator():
 
 
     def run(self):
-      if len(self.platform) == 3: # SINGLE PART
-        self.id_name = self.platform[0]
-        self.format = self.platform[1]
-        self.parts = 1
-        self.url = f"https://archive.org/metadata/{self.platform[2]}"
-        self.output_cache_json[self.id_name] = {}
-        DebugHelper.print(DebugType.TYPE_DEBUG, f"Processing <{self.id_name}>", "CACHE")
-        self._ProcessPart(part_id=self.platform[2])
-      elif len(self.platform) == 4: # MULTI PART
-        self.id_name = self.platform[0]
-        self.format = self.platform[1]
-        self.parts = self.platform[2]
-        self.output_cache_json[self.id_name] = {}
-        
-        DebugHelper.print(DebugType.TYPE_DEBUG, f"Processing <{self.id_name}>", "CACHE")
-        for i in range(1, self.parts+1):
-          parts_id = str(self.platform[3]).replace('$$', str(i))
-          self.url = f"https://archive.org/metadata/{parts_id}"
-          self._ProcessPart(part_id=parts_id, part_number=i)
+      self.id_name = self.platform[0]
+      self.format = self.platform[1].lower()
+      source = self.platform[2]
+      self.output_cache_json[self.id_name] = {}
+      DebugHelper.print(DebugType.TYPE_DEBUG, f"Processing <{self.id_name}>", "CACHE")
+
+      if isinstance(source, list):
+        for part_id in source:
+          self._ProcessPart(part_id)
+      else:
+        self._ProcessPart(source)
+
       self.finished.emit(self.id_name)
 
 
-    def _ProcessPart(self, part_id: str, part_number: int = 1):
-      import requests, json
+    def _ProcessPart(self, part_id: str):
+      import requests
+      url = f"https://archive.org/metadata/{part_id}"
       try:
-        content_request = requests.get(self.url, timeout=30)
-        content_request.raise_for_status()
-        content_json = content_request.json()
-        part_files = content_json.get('files', [])
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        part_files = response.json().get('files', [])
         if not part_files:
           DebugHelper.print(DebugType.TYPE_WARNING, f"No files found for <{part_id}>. The Archive item may be private or unavailable.", "CACHE")
         for file_data in part_files:
-          file = file_data.get('name', '')
-          if file_data.get('format') == self.format and file.endswith(f".{self.format}"):
-            output_file = {
+          file_name = file_data.get('name', '')
+          if file_data.get('format', '').lower() == self.format and file_name.lower().endswith(f".{self.format}"):
+            rom_key = file_name[:-(len(self.format) + 1)]
+            self.output_cache_json[self.id_name][rom_key] = {
               "source_id": part_id,
               "size": int(file_data.get('size', 0)),
               "md5": file_data.get('md5', ''),
               "crc32": file_data.get('crc32', ''),
               "sha1": file_data.get('sha1', ''),
-              "format": file_data.get('format', self.format),
+              "format": self.format,
             }
-            self.output_cache_json[self.id_name][file[:-(len(self.format)+1)]] = output_file
       except Exception as e:
         DebugHelper.print(DebugType.TYPE_ERROR, f"Could not fetch <{part_id}> from Archive: {e}", "CACHE")
 
