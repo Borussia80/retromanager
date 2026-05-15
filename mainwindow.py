@@ -989,17 +989,27 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Verificando integridade de '{rom_name}'…")
         worker = HashCheckWorker(rom_path, expected)
         worker.signals.done.connect(
-            lambda results: self._onHashCheckDone(rom_path, results)
+            lambda results, _p=platform, _r=rom_name:
+                self._onHashCheckDone(rom_path, results, _p, _r)
         )
         worker.signals.error.connect(
             lambda err: QMessageBox.warning(self, "Erro", f"Não foi possível ler o arquivo:\n{err}")
         )
         QThreadPool.globalInstance().start(worker)
 
-    def _onHashCheckDone(self, file_path: str, results: dict):
+    def _onHashCheckDone(self, file_path: str, results: dict,
+                         platform: str = None, rom_name: str = None):
         self.statusBar().clearMessage()
+        all_ok = all(
+            (not exp or act.lower() == exp.lower())
+            for act, exp in results.values()
+        )
         dlg = HashResultDialog(file_path, results, parent=self)
-        dlg.exec()
+        redownload = dlg.exec() == QDialog.DialogCode.Accepted
+        if redownload and not all_ok and platform and rom_name:
+            self.download_queue.add(platform, [rom_name])
+            self._updateStatusbarQueueText()
+            self._launchRomsDownload()
 
     # ──────────────────────────────────────────────
     # Import library
