@@ -17,7 +17,7 @@ class UpdaterHelper():
 
   def _fetchLatestRelease(self) -> None:
     try:
-      self.last_release_version: str = requests.get('https://api.github.com/repos/silverlays/NoIntro-Roms-Downloader/releases', timeout=3).json()[0]['name']
+      self.last_release_version: str = requests.get('https://api.github.com/repos/Borussia80/retromanager/releases', timeout=3).json()[0]['name']
       self.last_release_version = self.last_release_version.removeprefix('v').split('.')
       
       self.LASTEST_MAJOR = int(self.last_release_version[0])

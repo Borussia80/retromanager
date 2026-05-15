@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import *
 from _settings import SettingsHelper
 from _updater import UpdaterHelper
 from _platforms import PlatformsHelper
-from _tools import Tools, RomDownload, Unzip
+from _tools import Tools, DownloadWorker
 from _debug import *
 
 # Ui
@@ -45,6 +45,16 @@ class MainWindow(QMainWindow, Ui):
     self.aboutDialog = About(self)
     self.download_pane = DownloadPane(self.gb_downloads)
     self.download_queue = DownloadQueue(self, self.platforms)
+    self.download_thread = None
+    self.download_worker = None
+    self.download_total_count = 0
+    self.download_completed_count = 0
+    self.download_failed = False
+    self.table_placeholder_active = False
+    self.filter_timer = QTimer(self)
+    self.filter_timer.setSingleShot(True)
+    self.filter_timer.setInterval(150)
+    self.filter_timer.timeout.connect(self._applyTableFilter)
 
     # Setup form
     self.setWindowTitle(f"retromanager {self.updater.currentVersionString()}")
@@ -104,6 +114,7 @@ class MainWindow(QMainWindow, Ui):
     # Startup task(s)
     self._checkUpdates(at_launch=True)
     self._loadPlatformsList()
+    self._showEmptyTableMessage("Select a platform on the left to browse games.")
 
 
   def _setupTableHeaders(self):
@@ -151,8 +162,7 @@ class MainWindow(QMainWindow, Ui):
     available_platforms = 0
     total_roms = 0
 
-    for i in range(self.platforms.platformsCount()):
-      name = self.platforms.getPlatformName(i)
+    for name in self.platforms.getPlatforms():
       rom_count = self.platforms.getRomsCount(name)
       total_roms += rom_count
       item_text = f"{name} ({rom_count})"
@@ -173,15 +183,24 @@ class MainWindow(QMainWindow, Ui):
 
 
   def _filterTableWidget(self):
+    self.filter_timer.start()
+
+
+  def _applyTableFilter(self):
     """Handle table filtering."""
+    if self.table_placeholder_active:
+      return
+
     keywords = self.le_filter.text().strip().lower().split()
     region = self._selectedRegion()
 
+    visible_count = 0
     for i in range(self.tw_romsList.rowCount()):
       rom_name = self.tw_romsList.item(i, 0).text()
-      self.tw_romsList.setRowHidden(i, not self._romMatchesFilters(rom_name, keywords, region))
-
-    visible_count = sum(0 if self.tw_romsList.isRowHidden(i) else 1 for i in range(self.tw_romsList.rowCount()))
+      is_visible = self._romMatchesFilters(rom_name, keywords, region)
+      self.tw_romsList.setRowHidden(i, not is_visible)
+      if is_visible:
+        visible_count += 1
     self.statusbar.showMessage(f"{visible_count} visible item(s)", 3000)
 
 
@@ -205,8 +224,15 @@ class MainWindow(QMainWindow, Ui):
 
 
   def _addToQueue(self):
-    self.download_queue.add(self.platforms.getPlatformName(self.lw_platforms.selectedIndexes()[0].row()), [row.row() for row in self.tw_romsList.selectedIndexes() if row.column() == 0])
+    if not self.lw_platforms.selectedItems():
+      return
+    platform = self.lw_platforms.selectedItems()[0].data(Qt.ItemDataRole.UserRole)
+    selected_rows = [row.row() for row in self.tw_romsList.selectedIndexes() if row.column() == 0 and not self.tw_romsList.isRowHidden(row.row())]
+    before_count = self.download_queue.getTotalCount()
+    self.download_queue.add(platform, selected_rows)
     self._updateStatusbarQueueText()
+    added_count = self.download_queue.getTotalCount() - before_count
+    self.statusbar.showMessage(f"{added_count} item(s) added to queue", 3000)
   
 
   def _downloadNowContextMenu(self):
@@ -216,55 +242,98 @@ class MainWindow(QMainWindow, Ui):
 
   def _launchRomsDownload(self):
     DebugHelper.print(DebugType.TYPE_INFO, "Download started...")
+    if self.download_thread and self.download_thread.isRunning():
+      QMessageBox.information(self, "Download in progress", "A download is already running.")
+      return
+
     if self.download_queue.getTotalCount() == 0:
       QMessageBox.information(self, "Download queue", "No items are queued for download.")
       return
 
     self.gb_downloads.setChecked(True)
     self.download_pane.show()
-    total_count = self.download_queue.getTotalCount()
-    completed_count = 0
-    self.download_pane.pb_progress.setMaximum(total_count)
+    self.gb_downloads.setFixedHeight(100)
+    self.download_total_count = self.download_queue.getTotalCount()
+    self.download_completed_count = 0
+    self.download_failed = False
+    self.download_pane.pb_progress.setMaximum(1000)
     self.download_pane.pb_progress.setValue(0)
-    for platform in self.download_queue.queue_dict:
-      for i in range(len(self.download_queue.queue_dict[platform])):
-        rom_name = self.platforms.getRomName(platform, self.download_queue.queue_dict[platform][0])
-        rom_index = self.download_queue.queue_dict[platform][0]
-        self.download_pane.l_job.setText(f"[{platform}] {rom_name}")
-        self.download_pane.l_progress.setText(f"{completed_count}/{total_count}")
-        self.repaint()
-        try:
-          RomDownload(self.settings, self.platforms, platform, rom_index)
-          if self.settings.get('unzip'): Unzip(self.settings, f"{rom_name}.{self.platforms.getRom(platform, rom_name)['format']}")
-          self.download_queue.remove(platform, rom_index)
-          completed_count += 1
-        except Exception as e:
-          DebugHelper.print(DebugType.TYPE_ERROR, f"Download failed for [{platform}] {rom_name}: {e}", "downloader")
-          QMessageBox.warning(
-            self,
-            "Download failed",
-            f"Could not download:\n\n[{platform}] {rom_name}\n\n{e}\n\nThe item was left in the queue so you can try again."
-          )
-          self.download_pane.l_job.setText("Download failed")
-          self.download_pane.l_progress.setText(f"{completed_count}/{total_count}")
-          return
-        self.download_pane.pb_progress.setValue(completed_count)
-        self.repaint()
+    self.download_pane.l_progress.setText(f"0/{self.download_total_count}")
+    self.download_pane.l_speed.setText("0 KB/s")
+
+    self.download_thread = QThread(self)
+    self.download_worker = DownloadWorker(self.settings, self.platforms, self.download_queue.items())
+    self.download_worker.moveToThread(self.download_thread)
+    self.download_thread.started.connect(self.download_worker.run)
+    self.download_worker.startedItem.connect(self._onDownloadStartedItem)
+    self.download_worker.progress.connect(self._onDownloadProgress)
+    self.download_worker.completedItem.connect(self._onDownloadCompletedItem)
+    self.download_worker.failedItem.connect(self._onDownloadFailedItem)
+    self.download_worker.finished.connect(self.download_thread.quit)
+    self.download_worker.finished.connect(self.download_worker.deleteLater)
+    self.download_thread.finished.connect(self._onDownloadThreadFinished)
+    self.download_thread.finished.connect(self.download_thread.deleteLater)
+    self.download_thread.start()
+
+
+  def _onDownloadStartedItem(self, platform: str, rom_name: str, current_index: int, total_count: int):
+    self.download_pane.l_job.setText(f"[{platform}] {rom_name}")
+    self.download_pane.l_progress.setText(f"{current_index}/{total_count} - starting")
+    self.download_pane.pb_progress.setValue(0)
+    self.download_pane.l_speed.setText("0 KB/s")
+
+
+  def _onDownloadProgress(self, bytes_done: int, total_bytes: int, bytes_per_second: float):
+    if total_bytes > 0:
+      self.download_pane.pb_progress.setValue(min(1000, int(bytes_done / total_bytes * 1000)))
+      self.download_pane.l_progress.setText(f"{self.download_completed_count + 1}/{self.download_total_count} - {Tools.convertSizeToReadable(bytes_done)} / {Tools.convertSizeToReadable(total_bytes)}")
+    else:
+      self.download_pane.pb_progress.setValue(0)
+      self.download_pane.l_progress.setText(f"{self.download_completed_count + 1}/{self.download_total_count} - {Tools.convertSizeToReadable(bytes_done)}")
+    self.download_pane.l_speed.setText(f"{Tools.convertSizeToReadable(int(bytes_per_second))}/s")
+
+
+  def _onDownloadCompletedItem(self, platform: str, rom_index: int):
+    self.download_completed_count += 1
+    self.download_queue.remove(platform, rom_index)
+    self.download_pane.pb_progress.setValue(1000)
+    self.download_pane.l_progress.setText(f"{self.download_completed_count}/{self.download_total_count}")
+    self._updateStatusbarQueueText()
+
+
+  def _onDownloadFailedItem(self, platform: str, rom_index: int, error_message: str):
+    self.download_failed = True
+    rom_name = self.platforms.getRomName(platform, rom_index)
+    DebugHelper.print(DebugType.TYPE_ERROR, f"Download failed for [{platform}] {rom_name}: {error_message}", "downloader")
+    self.download_pane.l_job.setText("Download failed")
+    self.download_pane.l_progress.setText(f"{self.download_completed_count}/{self.download_total_count}")
+    QMessageBox.warning(
+      self,
+      "Download failed",
+      f"Could not download:\n\n[{platform}] {rom_name}\n\n{error_message}\n\nThe item was left in the queue so you can try again."
+    )
+
+
+  def _onDownloadThreadFinished(self):
+    self.download_thread = None
+    self.download_worker = None
+    if self.download_failed:
+      return
     self.download_pane.l_job.setText("N/A")
-    self.download_pane.l_progress.setText(f"{completed_count}/{total_count}")
-    QMessageBox.information(self, "Downloads complete", f"Downloaded {completed_count} item(s).")
+    self.download_pane.l_progress.setText(f"{self.download_completed_count}/{self.download_total_count}")
+    self.download_pane.l_speed.setText("Done")
+    QMessageBox.information(self, "Downloads complete", f"Downloaded {self.download_completed_count} item(s).")
 
 
   def _onListwidgetSelectionChanged(self, item: QListWidgetItem):
     platform_name = item.data(Qt.ItemDataRole.UserRole) or item.text()
+    self.table_placeholder_active = False
 
     # Clear the table
     self.tw_romsList.setRowCount(0)
 
     # Fill the table with new content
-    for i in range(self.platforms.getRomsCount(platform_name)):
-      rom_name = self.platforms.getRomName(platform_name, i)
-      rom_data = self.platforms.getRom(platform_name, rom_name)
+    for i, (rom_name, rom_data) in enumerate(self.platforms.getRoms(platform_name)):
 
       # Creating Items for table's row
       rom_name_item = QTableWidgetItem(rom_name)
@@ -295,8 +364,18 @@ class MainWindow(QMainWindow, Ui):
     #self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
 
     # Apply any previous filters
-    self._filterTableWidget()
+    self._applyTableFilter()
     self.statusbar.showMessage(f"{platform_name}: {self.platforms.getRomsCount(platform_name)} item(s)", 5000)
+
+
+  def _showEmptyTableMessage(self, message: str):
+    self.table_placeholder_active = True
+    self.tw_romsList.setRowCount(1)
+    self.tw_romsList.setSpan(0, 0, 1, self.tw_romsList.columnCount())
+    item = QTableWidgetItem(message)
+    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+    item.setFlags(Qt.ItemFlag.NoItemFlags)
+    self.tw_romsList.setItem(0, 0, item)
 
 
   def _buildRomSummary(self, platform_name: str, rom_name: str, rom_data: dict) -> str:

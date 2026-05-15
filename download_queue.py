@@ -26,10 +26,6 @@ class CustomListItemWidget(QListWidgetItem):
 
 class DownloadQueue(QDialog, Ui_DownloadQueue):
   """This class handle the Download Queue"""
-  queue_dict = {}
-  platforms: PlatformsHelper = None
-
-
   def __init__(self, parent: QMainWindow, platforms: PlatformsHelper):
     super().__init__(parent)
     
@@ -47,6 +43,7 @@ class DownloadQueue(QDialog, Ui_DownloadQueue):
 
     # Setup variables
     self.platforms = platforms
+    self.queue_dict = {}
 
 
   def show(self, *args) -> None:
@@ -55,14 +52,29 @@ class DownloadQueue(QDialog, Ui_DownloadQueue):
   
   
   def add(self, platform_name: str, roms_indexes: list[int]) -> None:
-    try: self.queue_dict[platform_name] += roms_indexes
-    except KeyError: self.queue_dict[platform_name] = roms_indexes
-    finally: self.queue_dict[platform_name] = sorted(self.queue_dict[platform_name])
+    if platform_name not in self.queue_dict:
+      self.queue_dict[platform_name] = []
+    for rom_index in roms_indexes:
+      if rom_index not in self.queue_dict[platform_name]:
+        self.queue_dict[platform_name].append(rom_index)
+    self.queue_dict[platform_name] = sorted(self.queue_dict[platform_name])
   
 
   def remove(self, platform_name: str, rom_index: int):
+    if platform_name not in self.queue_dict or rom_index not in self.queue_dict[platform_name]:
+      return
     self.queue_dict[platform_name].remove(rom_index)
+    if len(self.queue_dict[platform_name]) == 0:
+      del self.queue_dict[platform_name]
     self._refreshList()
+
+
+  def items(self) -> list[tuple[str, int]]:
+    queue_items = []
+    for platform in self.queue_dict.keys():
+      for rom_index in self.queue_dict[platform]:
+        queue_items.append((platform, rom_index))
+    return queue_items
 
 
   def getTotalCount(self) -> int:
@@ -100,7 +112,7 @@ class DownloadQueue(QDialog, Ui_DownloadQueue):
     try:
       text = self.lwToDownload.selectedItems()[0].text()
       self.pbDelete.setEnabled(True)
-    except:
+    except IndexError:
       self.pbDelete.setEnabled(False)
 
 

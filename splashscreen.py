@@ -1,4 +1,4 @@
-import os, time
+import os
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
@@ -45,7 +45,6 @@ class SplashScreen(QSplashScreen):
         color=Qt.GlobalColor.white,
         alignment=(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter)
       )
-      time.sleep(2)
     self.platforms = PlatformsHelper()
     super().close()
 

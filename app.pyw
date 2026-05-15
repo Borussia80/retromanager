@@ -16,11 +16,11 @@ import qdarktheme as darktheme
 
 
 
-os.environ['DEBUG'] = "4" # 0 = DISABLE
-                          # 1 = ERROR
-                          # 2 = WARNING
-                          # 3 = INFO
-                          # 4 = DEBUG
+os.environ.setdefault('DEBUG', "0") # 0 = DISABLE
+                                   # 1 = ERROR
+                                   # 2 = WARNING
+                                   # 3 = INFO
+                                   # 4 = DEBUG
 
 
 

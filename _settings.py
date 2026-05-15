@@ -8,16 +8,14 @@ from _debug import *
 
 
 class SettingsHelper():
-  full_path = SETTINGS_FILE
-  _settings = {
-    "cache_expiration": 30,
-    "check_updates": False,
-    "download_path": DEFAULT_DOWNLOAD_DIR,
-    "unzip": True,
-  }
-
-
   def __init__(self):
+    self.full_path = SETTINGS_FILE
+    self._settings = {
+      "cache_expiration": 30,
+      "check_updates": False,
+      "download_path": DEFAULT_DOWNLOAD_DIR,
+      "unzip": True,
+    }
     os.makedirs(CONFIG_DIR, exist_ok=True)
     os.makedirs(CACHE_DIR, exist_ok=True)
     os.makedirs(self._settings["download_path"], exist_ok=True)
@@ -79,9 +77,9 @@ class SettingsHelper():
   def _fix(self, old_settings: dict):
     DebugHelper.print(DebugType.TYPE_WARNING, f"Application and file mismatch. Trying to fix...", "SETTINGS")
     for key in old_settings:
-      try:
-        if self._settings[key]: self._settings[key] = old_settings[key]
+      if key in self._settings:
+        self._settings[key] = old_settings[key]
         DebugHelper.print(DebugType.TYPE_WARNING, f"'{key}' recovered.", "SETTINGS")
-      except KeyError:
+      else:
         DebugHelper.print(DebugType.TYPE_ERROR, f"'{key}' cannot be recovered.", "SETTINGS")
     self.write()

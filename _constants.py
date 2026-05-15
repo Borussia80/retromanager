@@ -9,7 +9,7 @@ VERSION_REVISION = "0 RC1"
 RESOURCES_FILE = os.path.join(os.path.split(__file__)[0], "resources.rcc")
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", APP_NAME)
 CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", APP_NAME)
-DEFAULT_DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), "Jogos", "ROMs")
+DEFAULT_DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), "ROMs")
 SETTINGS_FILE = os.path.join(CONFIG_DIR, "settings.json")
 PLATFORMS_CACHE_FILENAME = os.path.join(CACHE_DIR, "database_cache.json")
 

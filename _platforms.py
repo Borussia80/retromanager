@@ -6,10 +6,8 @@ from _debug import *
 
 
 class PlatformsHelper():
-  _platformsCache = {}
-
-
   def __init__(self):
+    self._platformsCache = {}
     if os.path.exists(PLATFORMS_CACHE_FILENAME):
       try:
         with open(PLATFORMS_CACHE_FILENAME, 'r', encoding='utf-8') as fp: self._platformsCache = json.load(fp)
@@ -36,6 +34,10 @@ class PlatformsHelper():
 
   def getPlatformName(self, index: int) -> str:
     return list(self._platformsCache.keys())[index]
+
+
+  def getPlatforms(self):
+    return self._platformsCache.keys()
   
 
   def getRomName(self, platform_name: str, index: int) -> str:
@@ -44,3 +46,7 @@ class PlatformsHelper():
 
   def getRom(self, platform_name: str, rom_name: str) -> dict:
     return self._platformsCache[platform_name][rom_name]
+
+
+  def getRoms(self, platform_name: str):
+    return self._platformsCache[platform_name].items()

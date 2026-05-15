@@ -22,11 +22,12 @@ retromanager is being shaped into a retro library manager: simple browsing, reli
 
 ## Phase 2 - Reliable Downloads
 
-- Move downloads to background workers.
-- Show per-file and total progress.
+- [x] Move downloads to background workers.
+- [x] Stream downloads to disk instead of loading full files into RAM.
+- [x] Show per-file progress and transfer speed.
+- [x] Validate MD5, SHA1, and CRC32 after download.
 - Add retry/cancel support.
-- Stream files to disk and validate hashes after download.
-- Avoid duplicate queue entries.
+- [x] Avoid duplicate queue entries.
 
 ## Phase 3 - Local Library
 

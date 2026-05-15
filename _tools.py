@@ -70,23 +70,21 @@ class CacheGenerator():
         DebugHelper.print(DebugType.TYPE_ERROR, f"Could not fetch <{part_id}> from Archive: {e}", "CACHE")
 
 
-  app: QApplication = None
-  parent: QSplashScreen = None
-  output_cache_json = {}
-  threads = []
-  workers = []
-  download_completed = 0
-
-
   def __init__(self, app: QApplication, parent: QSplashScreen) -> None:
     self.app = app
     self.parent = parent
+    self.output_cache_json = {}
+    self.threads = []
+    self.workers = []
+    self.download_completed = 0
+    self.event_loop = None
 
 
   def run(self):
     import json, os
 
     # Create workers and run them in separate threads (for speed)
+    self.event_loop = QEventLoop()
     [self.threads.append(QThread()) for _ in range(len(ARCHIVE_PLATFORMS_DATA))]
 
     for i in range(len(ARCHIVE_PLATFORMS_DATA)):
@@ -98,20 +96,13 @@ class CacheGenerator():
       self.threads[i].finished.connect(self.threads[i].deleteLater)
       self.threads[i].start()
 
-    # Wait until workers finished
-    while self.download_completed != len(self.threads): self.app.processEvents()
+    # Wait until workers finished without spinning the CPU.
+    QTimer.singleShot(120000, self.event_loop.quit)
+    if self.download_completed != len(self.threads):
+      self.event_loop.exec()
     
     # Sort the data before writing
-    temp_dict = sorted(self.output_cache_json)
-    new_output_cache_json = {}
-    for i in range(len(temp_dict)):
-      temp_name = temp_dict[i]
-      for j in range(len(self.output_cache_json)):
-        output_name = list(self.output_cache_json)[j]
-        if temp_name == output_name:
-          new_output_cache_json[temp_name] = {}
-          new_output_cache_json[temp_name] = self.output_cache_json[temp_name]
-    self.output_cache_json = new_output_cache_json
+    self.output_cache_json = {name: self.output_cache_json[name] for name in sorted(self.output_cache_json)}
     
     # And finally write to file
     os.makedirs(CACHE_DIR, exist_ok=True)
@@ -126,6 +117,8 @@ class CacheGenerator():
       color=Qt.GlobalColor.white,
       alignment=(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter)
     )
+    if self.event_loop and self.download_completed == len(self.threads):
+      self.event_loop.quit()
 
 
 
@@ -156,6 +149,102 @@ class RomDownload():
     os.replace(temp_path, output_path)
 
 
+class DownloadWorker(QObject):
+  startedItem = pyqtSignal(str, str, int, int)
+  progress = pyqtSignal(int, int, float)
+  completedItem = pyqtSignal(str, int)
+  failedItem = pyqtSignal(str, int, str)
+  finished = pyqtSignal()
+
+
+  def __init__(self, settings: SettingsHelper, platforms: PlatformsHelper, queue_items: list[tuple[str, int]]):
+    super().__init__(None)
+    self.settings = settings
+    self.platforms = platforms
+    self.queue_items = queue_items
+
+
+  def run(self):
+    for current_index, (platform, rom_index) in enumerate(self.queue_items, start=1):
+      rom_name = self.platforms.getRomName(platform, rom_index)
+      self.startedItem.emit(platform, rom_name, current_index, len(self.queue_items))
+      try:
+        output_path = self._download(platform, rom_index)
+        if self.settings.get('unzip'):
+          self._unzip(output_path)
+        self.completedItem.emit(platform, rom_index)
+      except Exception as e:
+        self.failedItem.emit(platform, rom_index, str(e))
+        break
+    self.finished.emit()
+
+
+  def _download(self, platform: str, rom_index: int) -> str:
+    import hashlib, os, requests, time, zlib
+    from urllib.parse import quote
+
+    rom_name = self.platforms.getRomName(platform, rom_index)
+    rom_data = self.platforms.getRom(platform, rom_name)
+    rom_format = rom_data['format']
+    rom_url = f"https://archive.org/download/{rom_data['source_id']}/{quote(rom_name)}.{rom_format}"
+    output_path = os.path.join(self.settings.get('download_path'), f"{rom_name}.{rom_format}")
+    temp_path = f"{output_path}.part"
+
+    os.makedirs(self.settings.get('download_path'), exist_ok=True)
+    if os.path.exists(temp_path):
+      os.remove(temp_path)
+
+    md5 = hashlib.md5()
+    sha1 = hashlib.sha1()
+    crc32 = 0
+    bytes_done = 0
+    started_at = time.monotonic()
+
+    try:
+      DebugHelper.print(DebugType.TYPE_INFO, f"Downloading [{platform}] {rom_name}", "downloader")
+      DebugHelper.print(DebugType.TYPE_DEBUG, f"Downloading from [{rom_url}]", "downloader")
+      with requests.get(rom_url, timeout=60, stream=True) as response:
+        response.raise_for_status()
+        total_bytes = int(response.headers.get("content-length") or rom_data.get("size") or 0)
+        with open(temp_path, "wb") as of:
+          for chunk in response.iter_content(chunk_size=1024 * 64):
+            if not chunk:
+              continue
+            of.write(chunk)
+            md5.update(chunk)
+            sha1.update(chunk)
+            crc32 = zlib.crc32(chunk, crc32)
+            bytes_done += len(chunk)
+            elapsed = max(time.monotonic() - started_at, 0.001)
+            self.progress.emit(bytes_done, total_bytes, bytes_done / elapsed)
+
+      self._validateHash("MD5", md5.hexdigest(), rom_data.get("md5", ""))
+      self._validateHash("SHA1", sha1.hexdigest(), rom_data.get("sha1", ""))
+      self._validateHash("CRC32", f"{crc32 & 0xffffffff:08x}", rom_data.get("crc32", ""))
+      os.replace(temp_path, output_path)
+      return output_path
+    except Exception:
+      if os.path.exists(temp_path):
+        os.remove(temp_path)
+      raise
+
+
+  def _validateHash(self, label: str, actual: str, expected: str):
+    if expected and actual.lower() != expected.lower():
+      raise ValueError(f"{label} mismatch: expected {expected}, got {actual}")
+
+
+  def _unzip(self, archive_path: str):
+    import os
+    from py7zr import SevenZipFile
+
+    path = self.settings.get('download_path')
+    DebugHelper.print(DebugType.TYPE_INFO, f"Unzipping [{archive_path}]...", "unzip")
+    with SevenZipFile(archive_path) as archive:
+      archive.extractall(path)
+    os.remove(archive_path)
+
+
 
 class Unzip():
   def __init__(self, settings: SettingsHelper, filename: str) -> None:
@@ -163,7 +252,8 @@ class Unzip():
     path = settings.get('download_path')
     full_path = os.path.join(path, filename)
     DebugHelper.print(DebugType.TYPE_INFO, f"Unzipping [{full_path}]...", "unzip")
-    SevenZipFile(full_path).extractall(path)
+    with SevenZipFile(full_path) as archive:
+      archive.extractall(path)
     os.remove(full_path)
     
 
