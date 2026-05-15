@@ -14,7 +14,8 @@ CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", APP_NAME)
 CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", APP_NAME)
 DEFAULT_DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), "ROMs")
 SETTINGS_FILE = os.path.join(CONFIG_DIR, "settings.json")
-PLATFORMS_CACHE_FILENAME = os.path.join(CACHE_DIR, "database_cache.json")
+PLATFORMS_CACHE_FILENAME = os.path.join(CACHE_DIR, "database_cache.json")   # legacy JSON (kept for migration)
+PLATFORMS_CACHE_DB       = os.path.join(CACHE_DIR, "database_cache.db")
 MAME_NAMES_CACHE        = os.path.join(CACHE_DIR, "mame_names.json")
 
 ARCHIVE_PLATFORMS_DATA = [

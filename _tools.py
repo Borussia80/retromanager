@@ -98,14 +98,26 @@ class CacheGenerator():
     if self.download_completed != len(self.threads):
       self.event_loop.exec()
     
-    # Sort the data before writing
-    self.output_cache_json = {name: self.output_cache_json[name] for name in sorted(self.output_cache_json)}
-    
-    # And finally write to file
+    # Write all fetched ROMs to the SQLite catalogue DB
+    import sqlite3
+    from _platforms import _SCHEMA
     os.makedirs(CACHE_DIR, exist_ok=True)
-    with open(PLATFORMS_CACHE_FILENAME, "w", encoding="utf-8") as fp:
-      json.dump(self.output_cache_json, fp, indent=2, sort_keys=True)
-      fp.write("\n")
+    db = sqlite3.connect(PLATFORMS_CACHE_DB)
+    db.executescript(_SCHEMA)
+    db.execute("DELETE FROM roms")
+    rows = []
+    for platform in sorted(self.output_cache_json):
+      for name, d in self.output_cache_json[platform].items():
+        rows.append((
+          platform, name,
+          d.get('source_id', ''), d.get('file_path', ''),
+          int(d.get('size', 0)),
+          d.get('md5', ''), d.get('crc32', ''),
+          d.get('sha1', ''), d.get('format', ''),
+        ))
+    db.executemany("INSERT INTO roms VALUES (?,?,?,?,?,?,?,?,?)", rows)
+    db.commit()
+    db.close()
 
 
   def _updateMessage(self, platform_name: str):
@@ -352,13 +364,9 @@ class Tools():
 
     if validity_days == 0:
       return True
-    if not os.path.exists(PLATFORMS_CACHE_FILENAME):
+    check = PLATFORMS_CACHE_DB if os.path.exists(PLATFORMS_CACHE_DB) else PLATFORMS_CACHE_FILENAME
+    if not os.path.exists(check):
       return False
 
-    cache_mdate = os.path.getmtime(PLATFORMS_CACHE_FILENAME)
-    cache_mdate = datetime.fromtimestamp(cache_mdate)
-    today_date = datetime.today()
-    expiration_date = cache_mdate + timedelta(days=validity_days)
-
-    if expiration_date > today_date: return True
-    else: return False
+    cache_mdate = datetime.fromtimestamp(os.path.getmtime(check))
+    return cache_mdate + timedelta(days=validity_days) > datetime.today()
