@@ -26,60 +26,44 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
 
 modules:
-  # ── Python wheel dependencies (Python 3.14 / manylinux_2_17 x86_64) ─────────
+  # ── Python wheel dependencies ────────────────────────────────────────────────
+  # All wheels resolved for Python 3.14 / manylinux x86_64 via:
+  #   pip3 download PyQt6 PyQt6-Qt6 PyQt6-sip py7zr requests \
+  #     --only-binary=:all: --platform manylinux_2_17_x86_64 --python-version 3.14
   - name: python-deps
     buildsystem: simple
     build-commands:
       - pip3 install --no-index --find-links=. --prefix=/app
           pyqt6_sip-13.11.1-cp314-cp314-manylinux1_x86_64.manylinux_2_5_x86_64.whl
-          pyqt6-6.9.1-cp39-abi3-manylinux_2_28_x86_64.whl
-          psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl
           pyqt6_qt6-6.9.2-py3-none-manylinux_2_28_x86_64.whl
-          py7zr-1.1.0-py3-none-any.whl
-          texttable-1.7.0-py2.py3-none-any.whl
-          multivolumefile-0.2.3-py3-none-any.whl
-          inflate64-1.0.4-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
-          pycryptodomex-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+          pyqt6-6.9.1-cp39-abi3-manylinux_2_28_x86_64.whl
           brotli-1.2.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
-          requests-2.34.2-py3-none-any.whl
           certifi-2026.4.22-py3-none-any.whl
           charset_normalizer-3.4.7-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
           idna-3.15-py3-none-any.whl
+          inflate64-1.0.4-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+          multivolumefile-0.2.3-py3-none-any.whl
+          psutil-7.1.1-cp36-abi3-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+          pybcj-1.0.7-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+          pycryptodomex-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+          pyppmd-1.3.1-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+          texttable-1.7.0-py2.py3-none-any.whl
           urllib3-2.7.0-py3-none-any.whl
+          requests-2.34.2-py3-none-any.whl
+          py7zr-1.1.0-py3-none-any.whl
     sources:
       - type: file
         url: https://files.pythonhosted.org/packages/03/72/5a3d9ffef0caa7e1bc7a35d6300f6099bfccd1d8a485b4320ba20013a2d9/pyqt6_sip-13.11.1-cp314-cp314-manylinux1_x86_64.manylinux_2_5_x86_64.whl
         sha256: 353d613129316e9f7eda6bbe821deb7b7ffa14483499189171fd8a246873f9ac
       - type: file
-        url: https://files.pythonhosted.org/packages/d5/78/92f3c46440a83ebe22ae614bd6792e7b052bcb58ff128f677f5662015184/pyqt6-6.9.1-cp39-abi3-manylinux_2_28_x86_64.whl
-        sha256: 37884df27f774e2e1c0c96fa41e817a222329b80ffc6241725b0dc8c110acb35
-      - type: file
-        url: https://files.pythonhosted.org/packages/b5/70/5d8df3b09e25bce090399cf48e452d25c935ab72dad19406c77f4e828045/psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl
-        sha256: 076a2d2f923fd4821644f5ba89f059523da90dc9014e85f8e45a5774ca5bc6f9
-      - type: file
         url: https://files.pythonhosted.org/packages/a8/07/21f7dc188e35b46631707f3b40ace5643a0e03a8e1e446854826d08a04ae/pyqt6_qt6-6.9.2-py3-none-manylinux_2_28_x86_64.whl
         sha256: 9abfc0ee4a8293a6442128ae3f87f68e82e2a949d7b9caabd98c86ba5679ab48
       - type: file
-        url: https://files.pythonhosted.org/packages/f0/9c/762284710ead9076eeecd55fb60509c19cd1f4bea811df5f3603725b44cb/py7zr-1.1.0-py3-none-any.whl
-        sha256: 5921bc30fb72b5453aafe3b2183664c08ef508cde2655988d5e9bd6078353ef7
-      - type: file
-        url: https://files.pythonhosted.org/packages/24/99/4772b8e00a136f3e01236de33b0efda31ee7077203ba5967fcc76da94d65/texttable-1.7.0-py2.py3-none-any.whl
-        sha256: 72227d592c82b3d7f672731ae73e4d1f88cd8e2ef5b075a7a7f01a23a3743917
-      - type: file
-        url: https://files.pythonhosted.org/packages/22/31/ec5f46fd4c83185b806aa9c736e228cb780f13990a9cf4da0beb70025fcc/multivolumefile-0.2.3-py3-none-any.whl
-        sha256: 237f4353b60af1703087cf7725755a1f6fcaeeea48421e1896940cd1c920d678
-      - type: file
-        url: https://files.pythonhosted.org/packages/90/72/0b6035302e9c33f004240a50cb6e2e1fc7bb1f2b415b02d939c551bdd06b/inflate64-1.0.4-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
-        sha256: 6f0993214dea0738c557fa56c13cd9083aef0097a201d726c21984ad7f577514
-      - type: file
-        url: https://files.pythonhosted.org/packages/c8/a9/8862616a85cf450d2822dbd4fff1fcaba90877907a6ff5bc2672cafe42f8/pycryptodomex-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-        sha256: f489c4765093fb60e2edafdf223397bc716491b2b69fe74367b70d6999257a5c
+        url: https://files.pythonhosted.org/packages/d5/78/92f3c46440a83ebe22ae614bd6792e7b052bcb58ff128f677f5662015184/pyqt6-6.9.1-cp39-abi3-manylinux_2_28_x86_64.whl
+        sha256: 37884df27f774e2e1c0c96fa41e817a222329b80ffc6241725b0dc8c110acb35
       - type: file
         url: https://files.pythonhosted.org/packages/f3/2f/0976d5b097ff8a22163b10617f76b2557f15f0f39d6a0fe1f02b1a53e92b/brotli-1.2.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
         sha256: cf9cba6f5b78a2071ec6fb1e7bd39acf35071d90a81231d67e92d637776a6a63
-      - type: file
-        url: https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl
-        sha256: 2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0
       - type: file
         url: https://files.pythonhosted.org/packages/22/30/7cd8fdcdfbc5b869528b079bfb76dcdf6056b1a2097a662e5e8c04f42965/certifi-2026.4.22-py3-none-any.whl
         sha256: 3cb2210c8f88ba2318d29b0388d1023c8492ff72ecdde4ebdaddbb13a31b1c4a
@@ -90,8 +74,35 @@ modules:
         url: https://files.pythonhosted.org/packages/d2/23/408243171aa9aaba178d3e2559159c24c1171a641aa83b67bdd3394ead8e/idna-3.15-py3-none-any.whl
         sha256: 048adeaf8c2d788c40fee287673ccaa74c24ffd8dcf09ffa555a2fbb59f10ac8
       - type: file
+        url: https://files.pythonhosted.org/packages/90/72/0b6035302e9c33f004240a50cb6e2e1fc7bb1f2b415b02d939c551bdd06b/inflate64-1.0.4-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+        sha256: 6f0993214dea0738c557fa56c13cd9083aef0097a201d726c21984ad7f577514
+      - type: file
+        url: https://files.pythonhosted.org/packages/22/31/ec5f46fd4c83185b806aa9c736e228cb780f13990a9cf4da0beb70025fcc/multivolumefile-0.2.3-py3-none-any.whl
+        sha256: 237f4353b60af1703087cf7725755a1f6fcaeeea48421e1896940cd1c920d678
+      - type: file
+        url: https://files.pythonhosted.org/packages/3d/3c/b56076bb35303d0733fc47b110a1c9cce081a05ae2e886575a3587c1ee76/psutil-7.1.1-cp36-abi3-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+        sha256: 92ebc58030fb054fa0f26c3206ef01c31c29d67aee1367e3483c16665c25c8d2
+      - type: file
+        url: https://files.pythonhosted.org/packages/98/05/55337b0a9807887967b2cf49dd6f3bf47c7745786b0bda51a5cbfda66c78/pybcj-1.0.7-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+        sha256: fc73ee1bc064d6f97dfd66051d3859b32e1b6a4cf89b077f5c8ef6c2dccb71af
+      - type: file
+        url: https://files.pythonhosted.org/packages/c8/a9/8862616a85cf450d2822dbd4fff1fcaba90877907a6ff5bc2672cafe42f8/pycryptodomex-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+        sha256: f489c4765093fb60e2edafdf223397bc716491b2b69fe74367b70d6999257a5c
+      - type: file
+        url: https://files.pythonhosted.org/packages/8f/22/744c32c7da3de171d9e62a1b2cb4104544ac778358565a3dbc06a2253324/pyppmd-1.3.1-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+        sha256: 385e92c97c42e8a6f0bfc0e4acfc6c074cb1ba3a2f650f292696dd9f19e2e603
+      - type: file
+        url: https://files.pythonhosted.org/packages/24/99/4772b8e00a136f3e01236de33b0efda31ee7077203ba5967fcc76da94d65/texttable-1.7.0-py2.py3-none-any.whl
+        sha256: 72227d592c82b3d7f672731ae73e4d1f88cd8e2ef5b075a7a7f01a23a3743917
+      - type: file
         url: https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl
         sha256: 9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897
+      - type: file
+        url: https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl
+        sha256: 2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0
+      - type: file
+        url: https://files.pythonhosted.org/packages/f0/9c/762284710ead9076eeecd55fb60509c19cd1f4bea811df5f3603725b44cb/py7zr-1.1.0-py3-none-any.whl
+        sha256: 5921bc30fb72b5453aafe3b2183664c08ef508cde2655988d5e9bd6078353ef7
 
   # ── retromanager application ────────────────────────────────────────────────
   - name: retromanager
