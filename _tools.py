@@ -1,3 +1,5 @@
+import zipfile
+
 # Qt
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
@@ -163,7 +165,7 @@ class DownloadWorker(QObject):
           msg = str(e)
         self.failedItem.emit(platform, rom_name, msg)
         break
-      except Exception as e:
+      except (requests.exceptions.RequestException, ValueError, zipfile.BadZipFile) as e:
         self.failedItem.emit(platform, rom_name, str(e))
         break
     self.finished.emit()
@@ -261,7 +263,7 @@ class DownloadWorker(QObject):
       raise  # keep .part for future resume
     except ValueError:
       raise  # .part already removed above
-    except Exception:
+    except (requests.exceptions.RequestException, OSError):
       raise  # keep .part — network/IO error, resume later
 
 

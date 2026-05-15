@@ -21,8 +21,8 @@ class PlatformsHelper():
       except ValueError as e:
         DebugHelper.print(DebugType.TYPE_ERROR, f"Cache inválido, ignorando: {e}", "PLATFORMS")
         self._try_delete_bad_cache()
-      except Exception as e:
-        DebugHelper.print(DebugType.TYPE_ERROR, f"Error: {list(e.args)}", "EXCEPTION")
+      except OSError as e:
+        DebugHelper.print(DebugType.TYPE_ERROR, f"Error: {list(e.args)}", "PLATFORMS")
 
 
   def _read_legacy_pickle(self):
@@ -30,8 +30,8 @@ class PlatformsHelper():
       with open(PLATFORMS_CACHE_FILENAME, 'rb') as fp:
         self._platformsCache = pickle.load(fp)
       DebugHelper.print(DebugType.TYPE_INFO, f"<{PLATFORMS_CACHE_FILENAME}> legacy cache loaded!", "PLATFORMS")
-    except Exception as e:
-      DebugHelper.print(DebugType.TYPE_ERROR, f"Error: {list(e.args)}", "EXCEPTION")
+    except (pickle.UnpicklingError, OSError, EOFError, AttributeError) as e:
+      DebugHelper.print(DebugType.TYPE_ERROR, f"Error: {list(e.args)}", "PLATFORMS")
       self._try_delete_bad_cache()
 
   def _try_delete_bad_cache(self):
