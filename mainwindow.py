@@ -25,6 +25,7 @@ from about import About
 from retroarch_helper import RetroArchHelper
 from lutris_helper import LutrisHelper
 from empty_state import EmptyState
+from rom_detail_panel import RomDetailPanel
 import mame_names as _mame_names
 
 
@@ -279,14 +280,59 @@ class MainWindow(QMainWindow):
 
         self._splitter.addWidget(middle)
 
-        # ── Right: download panel ────────────────
+        # ── Right: detail + download panel (tabbed) ──
+        right_container = QWidget()
+        right_container.setStyleSheet(
+            "QWidget { background:#161b27; border-left:1px solid #2e3a52; }"
+        )
+        right_container.setMinimumWidth(200)
+        right_container.setMaximumWidth(320)
+        right_lay = QVBoxLayout(right_container)
+        right_lay.setContentsMargins(0, 0, 0, 0)
+        right_lay.setSpacing(0)
+
+        right_hdr = QWidget()
+        right_hdr.setFixedHeight(40)
+        right_hdr.setStyleSheet(
+            "background:#161b27;border-bottom:1px solid #2e3a52;"
+        )
+        right_hdr_lay = QHBoxLayout(right_hdr)
+        right_hdr_lay.setContentsMargins(8, 0, 8, 0)
+        right_hdr_lay.setSpacing(4)
+        _tab_style = """
+            QPushButton {
+                background:transparent;border:1px solid transparent;border-radius:5px;
+                color:#6b7a99;font-size:11px;font-weight:600;padding:0 10px;
+            }
+            QPushButton:checked { background:#4f8ef7;border-color:#4f8ef7;color:#fff; }
+            QPushButton:hover:!checked { background:#1e2535;color:#a9b4cc; }
+        """
+        self._tab_detail = QPushButton("Detalhes")
+        self._tab_queue  = QPushButton("Fila")
+        for _tb in (self._tab_detail, self._tab_queue):
+            _tb.setCheckable(True)
+            _tb.setAutoExclusive(True)
+            _tb.setFixedHeight(26)
+            _tb.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            _tb.setStyleSheet(_tab_style)
+            right_hdr_lay.addWidget(_tb)
+        self._tab_detail.setChecked(True)
+        right_hdr_lay.addStretch()
+        right_lay.addWidget(right_hdr)
+
+        self._right_stack = QStackedWidget()
+        self._detail_panel = RomDetailPanel()
+        self._right_stack.addWidget(self._detail_panel)   # index 0
         self.download_panel = DownloadQueuePanel()
-        self._splitter.addWidget(self.download_panel)
+        self._right_stack.addWidget(self.download_panel)  # index 1
+        right_lay.addWidget(self._right_stack)
+
+        self._splitter.addWidget(right_container)
 
         self._splitter.setStretchFactor(0, 0)
         self._splitter.setStretchFactor(1, 1)
         self._splitter.setStretchFactor(2, 0)
-        self._splitter.setSizes([230, 750, 230])
+        self._splitter.setSizes([230, 750, 260])
 
     def _build_menu(self):
         menubar = self.menuBar()
@@ -365,6 +411,16 @@ class MainWindow(QMainWindow):
         self.pb_all.toggled.connect(self._filterTableWidget)
         self.download_queue.updatedListEvent = self._updateStatusbarQueueText
         self.download_queue.downloadClickedEvent = self._launchRomsDownload
+
+        self.tw_romsList.itemSelectionChanged.connect(self._onRomSelectionChanged)
+        self._tab_detail.toggled.connect(
+            lambda on: self._right_stack.setCurrentIndex(0) if on else None
+        )
+        self._tab_queue.toggled.connect(
+            lambda on: self._right_stack.setCurrentIndex(1) if on else None
+        )
+        self._detail_panel.downloadRequested.connect(self._onDetailDownload)
+        self._detail_panel.favoriteToggled.connect(self._onDetailFavoriteToggled)
 
         QShortcut(QKeySequence("Ctrl+1"), self).activated.connect(
             lambda: (self.pb_view_list.setChecked(True), self._switch_view("list"))
@@ -809,6 +865,50 @@ class MainWindow(QMainWindow):
         )
         QMessageBox.information(self, "Detalhes do jogo", details)
 
+    def _onRomSelectionChanged(self):
+        rows = self.tw_romsList.selectionModel().selectedRows()
+        if not rows:
+            self._detail_panel.clear()
+            return
+        row = rows[0].row()
+        it = self.tw_romsList.item(row, 0)
+        if not it:
+            self._detail_panel.clear()
+            return
+        platform = it.data(Qt.ItemDataRole.UserRole) or ""
+        rom_name = self._row_shortname(row)
+        display_name = it.text()
+        is_fav = bool(it.data(Qt.ItemDataRole.UserRole + 2))
+        rom_data = self.platforms.getRom(platform, rom_name) if platform else None
+        if not rom_data:
+            self._detail_panel.clear()
+            return
+        self._detail_panel.show_rom(platform, rom_name, display_name, rom_data, is_fav)
+
+    def _onDetailDownload(self, platform: str, rom_name: str):
+        self.download_queue.add(platform, [rom_name])
+        self.download_panel.add_item(rom_name)
+        self._updateStatusbarQueueText()
+        self._launchRomsDownload()
+
+    def _onDetailFavoriteToggled(self, platform: str, rom_name: str):
+        now_fav = self._favorites.toggle(platform, rom_name)
+        for i in range(self.tw_romsList.rowCount()):
+            it = self.tw_romsList.item(i, 0)
+            if it and (it.data(Qt.ItemDataRole.UserRole + 3) or it.text()) == rom_name:
+                it.setData(Qt.ItemDataRole.UserRole + 2, now_fav)
+        self.tw_romsList.viewport().update()
+        if hasattr(self, '_fav_widget'):
+            self._fav_widget.update_count(self._favorites.count())
+        self._detail_panel.sync_fav(now_fav)
+        msg = (f"'{rom_name}' adicionado aos favoritos."
+               if now_fav else f"'{rom_name}' removido dos favoritos.")
+        self.statusBar().showMessage(msg, 3000)
+
+    def _update_queue_tab_label(self):
+        count = self.download_queue.getTotalCount()
+        self._tab_queue.setText(f"Fila  {count}" if count > 0 else "Fila")
+
     def _onRomslistRightClick(self, point: QPoint):
         if self.table_placeholder_active:
             return
@@ -1169,6 +1269,7 @@ class MainWindow(QMainWindow):
         self.download_panel.set_downloading(is_running)
         if not is_running:
             self.download_panel._btn_start.setEnabled(count > 0)
+        self._update_queue_tab_label()
 
     # ──────────────────────────────────────────────
     # Download
@@ -1209,6 +1310,7 @@ class MainWindow(QMainWindow):
         self.download_thread.finished.connect(self._onDownloadThreadFinished)
         self.download_thread.finished.connect(self.download_thread.deleteLater)
         self.download_thread.start()
+        self._tab_queue.setChecked(True)   # auto-switch to queue on download start
 
     def _onDownloadStartedItem(self, platform: str, rom_name: str, current: int, total: int):
         self._active_rom_name = rom_name
@@ -1252,6 +1354,7 @@ class MainWindow(QMainWindow):
         self.download_worker = None
         self._active_rom_name = None
         self._updateStatusbarQueueText()
+        self._tab_detail.setChecked(True)   # auto-switch back to details when done
         if not self.download_failed:
             self.statusBar().showMessage(
                 f"{fmt_count(self.download_completed_count)} baixados.", 5000
