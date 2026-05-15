@@ -54,6 +54,12 @@ class Ui_DownloadPane(object):
         self.l_speed.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.l_speed.setObjectName("l_speed")
         self.horizontalLayout.addWidget(self.l_speed)
+        self.pb_cancel = QtWidgets.QPushButton(DownloadPane)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed)
+        self.pb_cancel.setSizePolicy(sizePolicy)
+        self.pb_cancel.setObjectName("pb_cancel")
+        self.pb_cancel.setEnabled(False)
+        self.horizontalLayout.addWidget(self.pb_cancel)
         self.verticalLayout.addLayout(self.horizontalLayout)
 
         self.retranslateUi(DownloadPane)
@@ -66,3 +72,4 @@ class Ui_DownloadPane(object):
         self.l_job.setText(_translate("DownloadPane", "N/A"))
         self.l_progress.setText(_translate("DownloadPane", "0/0"))
         self.l_speed.setText(_translate("DownloadPane", "NaN Kb/s"))
+        self.pb_cancel.setText(_translate("DownloadPane", "Cancel"))

@@ -44,7 +44,7 @@ class MainWindow(QMainWindow, Ui):
     self.optionsDialog = Options(self, settings)
     self.aboutDialog = About(self)
     self.download_pane = DownloadPane(self.gb_downloads)
-    self.download_queue = DownloadQueue(self, self.platforms)
+    self.download_queue = DownloadQueue(self)
     self.download_thread = None
     self.download_worker = None
     self.download_total_count = 0
@@ -88,6 +88,7 @@ class MainWindow(QMainWindow, Ui):
     # Setup download queue
     self.download_queue.updatedListEvent = self._updateStatusbarQueueText
     self.download_queue.downloadClickedEvent = self._launchRomsDownload
+    self.download_pane.pb_cancel.clicked.connect(self._cancelDownload)
 
     # Setup menu events
     self.actionShowOptions.triggered.connect(lambda: self.optionsDialog.show())
@@ -227,11 +228,13 @@ class MainWindow(QMainWindow, Ui):
     if not self.lw_platforms.selectedItems():
       return
     platform = self.lw_platforms.selectedItems()[0].data(Qt.ItemDataRole.UserRole)
-    selected_rows = [row.row() for row in self.tw_romsList.selectedIndexes() if row.column() == 0 and not self.tw_romsList.isRowHidden(row.row())]
-    before_count = self.download_queue.getTotalCount()
-    self.download_queue.add(platform, selected_rows)
+    selected_names = [
+      self.tw_romsList.item(row.row(), 0).text()
+      for row in self.tw_romsList.selectedIndexes()
+      if row.column() == 0 and not self.tw_romsList.isRowHidden(row.row())
+    ]
+    added_count = self.download_queue.add(platform, selected_names)
     self._updateStatusbarQueueText()
-    added_count = self.download_queue.getTotalCount() - before_count
     self.statusbar.showMessage(f"{added_count} item(s) added to queue", 3000)
   
 
@@ -260,6 +263,7 @@ class MainWindow(QMainWindow, Ui):
     self.download_pane.pb_progress.setValue(0)
     self.download_pane.l_progress.setText(f"0/{self.download_total_count}")
     self.download_pane.l_speed.setText("0 KB/s")
+    self.download_pane.pb_cancel.setEnabled(True)
 
     self.download_thread = QThread(self)
     self.download_worker = DownloadWorker(self.settings, self.platforms, self.download_queue.items())
@@ -269,6 +273,7 @@ class MainWindow(QMainWindow, Ui):
     self.download_worker.progress.connect(self._onDownloadProgress)
     self.download_worker.completedItem.connect(self._onDownloadCompletedItem)
     self.download_worker.failedItem.connect(self._onDownloadFailedItem)
+    self.download_worker.cancelled.connect(self._onDownloadCancelled)
     self.download_worker.finished.connect(self.download_thread.quit)
     self.download_worker.finished.connect(self.download_worker.deleteLater)
     self.download_thread.finished.connect(self._onDownloadThreadFinished)
@@ -293,17 +298,16 @@ class MainWindow(QMainWindow, Ui):
     self.download_pane.l_speed.setText(f"{Tools.convertSizeToReadable(int(bytes_per_second))}/s")
 
 
-  def _onDownloadCompletedItem(self, platform: str, rom_index: int):
+  def _onDownloadCompletedItem(self, platform: str, rom_name: str):
     self.download_completed_count += 1
-    self.download_queue.remove(platform, rom_index)
+    self.download_queue.remove(platform, rom_name)
     self.download_pane.pb_progress.setValue(1000)
     self.download_pane.l_progress.setText(f"{self.download_completed_count}/{self.download_total_count}")
     self._updateStatusbarQueueText()
 
 
-  def _onDownloadFailedItem(self, platform: str, rom_index: int, error_message: str):
+  def _onDownloadFailedItem(self, platform: str, rom_name: str, error_message: str):
     self.download_failed = True
-    rom_name = self.platforms.getRomName(platform, rom_index)
     DebugHelper.print(DebugType.TYPE_ERROR, f"Download failed for [{platform}] {rom_name}: {error_message}", "downloader")
     self.download_pane.l_job.setText("Download failed")
     self.download_pane.l_progress.setText(f"{self.download_completed_count}/{self.download_total_count}")
@@ -314,9 +318,23 @@ class MainWindow(QMainWindow, Ui):
     )
 
 
+  def _onDownloadCancelled(self):
+    self.download_failed = True
+    self.download_pane.l_job.setText("Cancelled")
+    self.download_pane.l_speed.setText("")
+
+
+  def _cancelDownload(self):
+    if self.download_worker:
+      self.download_worker.cancel()
+      self.download_pane.pb_cancel.setEnabled(False)
+      self.download_pane.l_job.setText("Cancelling...")
+
+
   def _onDownloadThreadFinished(self):
     self.download_thread = None
     self.download_worker = None
+    self.download_pane.pb_cancel.setEnabled(False)
     if self.download_failed:
       return
     self.download_pane.l_job.setText("N/A")
@@ -361,7 +379,8 @@ class MainWindow(QMainWindow, Ui):
     self.tw_romsList.resizeColumnsToContents()
     self.tw_romsList.horizontalHeader().setStretchLastSection(False)
     self.tw_romsList.setColumnWidth(0, max(360, self.tw_romsList.columnWidth(0)))
-    #self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
+    self.tw_romsList.setSortingEnabled(True)
+    self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
 
     # Apply any previous filters
     self._applyTableFilter()

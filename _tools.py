@@ -122,68 +122,48 @@ class CacheGenerator():
 
 
 
-class RomDownload():
-  platform_name = ""
-  rom_name = ""
-  rom_url = ""
-  rom_format = ""
-
-  def __init__(self, settings: SettingsHelper, platforms: PlatformsHelper, platform: str, rom_index: int) -> None:
-    import requests
-    from urllib.parse import quote
-
-    self.platform_name = platform
-    self.rom_name = platforms.getRomName(platform, rom_index)
-    self.rom_format = platforms.getRom(platform, self.rom_name)['format']
-    self.rom_url = f"https://archive.org/download/{platforms.getRom(platform, self.rom_name)['source_id']}/{quote(self.rom_name)}.{self.rom_format}"
-    os.makedirs(settings.get('download_path'), exist_ok=True)
-    DebugHelper.print(DebugType.TYPE_INFO, f"Downloading [{self.platform_name}] {self.rom_name}", "downloader")
-
-    output_path = os.path.join(settings.get('download_path'), f"{self.rom_name}.{self.rom_format}")
-    temp_path = f"{output_path}.part"
-    DebugHelper.print(DebugType.TYPE_DEBUG, f"Downloading from [{self.rom_url}]", "downloader")
-    response = requests.get(self.rom_url, timeout=60)
-    response.raise_for_status()
-    with open(temp_path, "wb") as of:
-      of.write(response.content)
-    os.replace(temp_path, output_path)
-
-
 class DownloadWorker(QObject):
   startedItem = pyqtSignal(str, str, int, int)
   progress = pyqtSignal(int, int, float)
-  completedItem = pyqtSignal(str, int)
-  failedItem = pyqtSignal(str, int, str)
+  completedItem = pyqtSignal(str, str)
+  failedItem = pyqtSignal(str, str, str)
+  cancelled = pyqtSignal()
   finished = pyqtSignal()
 
 
-  def __init__(self, settings: SettingsHelper, platforms: PlatformsHelper, queue_items: list[tuple[str, int]]):
+  def __init__(self, settings: SettingsHelper, platforms: PlatformsHelper, queue_items: list[tuple[str, str]]):
     super().__init__(None)
     self.settings = settings
     self.platforms = platforms
     self.queue_items = queue_items
+    self._cancel_requested = False
+
+
+  def cancel(self):
+    self._cancel_requested = True
 
 
   def run(self):
-    for current_index, (platform, rom_index) in enumerate(self.queue_items, start=1):
-      rom_name = self.platforms.getRomName(platform, rom_index)
+    for current_index, (platform, rom_name) in enumerate(self.queue_items, start=1):
+      if self._cancel_requested:
+        self.cancelled.emit()
+        break
       self.startedItem.emit(platform, rom_name, current_index, len(self.queue_items))
       try:
-        output_path = self._download(platform, rom_index)
+        output_path = self._download(platform, rom_name)
         if self.settings.get('unzip'):
           self._unzip(output_path)
-        self.completedItem.emit(platform, rom_index)
+        self.completedItem.emit(platform, rom_name)
       except Exception as e:
-        self.failedItem.emit(platform, rom_index, str(e))
+        self.failedItem.emit(platform, rom_name, str(e))
         break
     self.finished.emit()
 
 
-  def _download(self, platform: str, rom_index: int) -> str:
+  def _download(self, platform: str, rom_name: str) -> str:
     import hashlib, os, requests, time, zlib
     from urllib.parse import quote
 
-    rom_name = self.platforms.getRomName(platform, rom_index)
     rom_data = self.platforms.getRom(platform, rom_name)
     rom_format = rom_data['format']
     rom_url = f"https://archive.org/download/{rom_data['source_id']}/{quote(rom_name)}.{rom_format}"
@@ -210,6 +190,8 @@ class DownloadWorker(QObject):
           for chunk in response.iter_content(chunk_size=1024 * 64):
             if not chunk:
               continue
+            if self._cancel_requested:
+              raise InterruptedError("Download cancelled by user")
             of.write(chunk)
             md5.update(chunk)
             sha1.update(chunk)
@@ -245,17 +227,6 @@ class DownloadWorker(QObject):
     os.remove(archive_path)
 
 
-
-class Unzip():
-  def __init__(self, settings: SettingsHelper, filename: str) -> None:
-    from py7zr import SevenZipFile
-    path = settings.get('download_path')
-    full_path = os.path.join(path, filename)
-    DebugHelper.print(DebugType.TYPE_INFO, f"Unzipping [{full_path}]...", "unzip")
-    with SevenZipFile(full_path) as archive:
-      archive.extractall(path)
-    os.remove(full_path)
-    
 
 
 class Tools():
