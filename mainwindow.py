@@ -358,6 +358,9 @@ class MainWindow(QMainWindow):
             lambda: (self.pb_view_grid.setChecked(True), self._switch_view("grid"))
         )
         QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(self.le_filter.setFocus)
+        QShortcut(QKeySequence("Ctrl+P"), self).activated.connect(
+            self.download_panel._btn_pause.click
+        )
 
     # ──────────────────────────────────────────────
     # Platform list
@@ -1100,7 +1103,8 @@ class MainWindow(QMainWindow):
         else:
             self.statusbar_queue.setText("")
         self.download_panel.set_downloading(is_running)
-        self.download_panel._btn_start.setEnabled(count > 0 and not is_running)
+        if not is_running:
+            self.download_panel._btn_start.setEnabled(count > 0)
 
     # ──────────────────────────────────────────────
     # Download

@@ -1,8 +1,9 @@
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QProgressBar, QScrollArea, QPushButton,
+    QProgressBar, QScrollArea, QPushButton, QToolButton,
 )
+from PyQt6.QtGui import QKeySequence, QShortcut
 
 
 def _fmt_bytes(b: int) -> str:
@@ -16,6 +17,7 @@ def _fmt_bytes(b: int) -> str:
 class DownloadItemWidget(QWidget):
     def __init__(self, rom_name: str, parent=None):
         super().__init__(parent)
+        self._is_complete = False
         self.setStyleSheet(
             "QWidget { border-bottom: 1px solid #2e3a52; background: transparent; }"
         )
@@ -67,6 +69,7 @@ class DownloadItemWidget(QWidget):
         self.lbl_meta.setStyleSheet("font-size:10px;color:#4f8ef7;border:none;")
 
     def set_complete(self):
+        self._is_complete = True
         self.bar.setValue(1000)
         self.bar.setStyleSheet("""
             QProgressBar { background:#252d40; border-radius:2px; border:none; }
@@ -90,6 +93,8 @@ class DownloadItemWidget(QWidget):
 
 class DownloadQueuePanel(QWidget):
     downloadRequested = pyqtSignal()
+    downloadPauseRequested = pyqtSignal()
+    downloadResumeRequested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -111,7 +116,8 @@ class DownloadQueuePanel(QWidget):
             "background:#161b27;border-bottom:1px solid #2e3a52;"
         )
         hdr_lay = QHBoxLayout(hdr)
-        hdr_lay.setContentsMargins(12, 0, 12, 0)
+        hdr_lay.setContentsMargins(12, 0, 8, 0)
+        hdr_lay.setSpacing(4)
 
         lbl_title = QLabel("Downloads")
         lbl_title.setStyleSheet(
@@ -124,26 +130,55 @@ class DownloadQueuePanel(QWidget):
             "padding:1px 7px;border-radius:9px;"
         )
 
-        self._btn_start = QPushButton("▶")
-        self._btn_start.setFixedSize(24, 24)
-        self._btn_start.setToolTip("Iniciar download dos itens na fila")
-        self._btn_start.setStyleSheet("""
-            QPushButton {
-                background:#4f8ef7;color:#fff;border:none;
-                border-radius:5px;font-size:11px;font-weight:600;
+        _btn_style = """
+            QToolButton {
+                background:transparent;border:1px solid #2e3a52;border-radius:5px;
+                font-size:12px;color:#6b7a99;padding:0;
             }
-            QPushButton:hover { background:#3a6fd4; }
-            QPushButton:pressed { background:#2e5ab0; }
-            QPushButton:disabled { background:#1e2535;color:#3d4f6e; }
-        """)
+            QToolButton:hover { background:#252d40;color:#a9b4cc; }
+            QToolButton:pressed { background:#1a2030; }
+            QToolButton:disabled { color:#2e3a52;border-color:#1e2535; }
+        """
+        _btn_start_style = """
+            QToolButton {
+                background:#4f8ef7;border:none;border-radius:5px;
+                font-size:12px;color:#fff;font-weight:600;padding:0;
+            }
+            QToolButton:hover { background:#3a6fd4; }
+            QToolButton:pressed { background:#2e5ab0; }
+            QToolButton:disabled { background:#1e2535;color:#3d4f6e; }
+        """
+
+        self._btn_pause = QToolButton()
+        self._btn_pause.setText("⏸")
+        self._btn_pause.setFixedSize(24, 24)
+        self._btn_pause.setToolTip("Pausar tudo (Ctrl+P)")
+        self._btn_pause.setStyleSheet(_btn_style)
+        self._btn_pause.setEnabled(False)
+        self._btn_pause.clicked.connect(self.downloadPauseRequested)
+
+        self._btn_start = QToolButton()
+        self._btn_start.setText("▶")
+        self._btn_start.setFixedSize(24, 24)
+        self._btn_start.setToolTip("Iniciar / Retomar downloads")
+        self._btn_start.setStyleSheet(_btn_start_style)
         self._btn_start.setEnabled(False)
         self._btn_start.clicked.connect(self.downloadRequested)
+
+        self._btn_clear = QToolButton()
+        self._btn_clear.setText("✕")
+        self._btn_clear.setFixedSize(24, 24)
+        self._btn_clear.setToolTip("Limpar concluídos")
+        self._btn_clear.setStyleSheet(_btn_style)
+        self._btn_clear.clicked.connect(self.clear_completed)
 
         hdr_lay.addWidget(lbl_title)
         hdr_lay.addStretch()
         hdr_lay.addWidget(self._badge)
-        hdr_lay.addSpacing(6)
+        hdr_lay.addSpacing(4)
+        hdr_lay.addWidget(self._btn_pause)
         hdr_lay.addWidget(self._btn_start)
+        hdr_lay.addWidget(self._btn_clear)
         root.addWidget(hdr)
 
         # Empty state
@@ -187,8 +222,9 @@ class DownloadQueuePanel(QWidget):
             self._empty_lbl.show()
 
     def set_downloading(self, active: bool):
-        """Disable the Start button while a download is in progress."""
-        self._btn_start.setEnabled(not active)
+        """Update Start/Pause buttons while a download is in progress."""
+        self._btn_start.setEnabled(not active and len(self._items) > 0)
+        self._btn_pause.setEnabled(active)
 
     def add_item(self, rom_name: str):
         if rom_name in self._items:
@@ -218,6 +254,13 @@ class DownloadQueuePanel(QWidget):
     def cancel_item(self, rom_name: str):
         if rom_name in self._items:
             self._items[rom_name].set_cancelled()
+
+    def clear_completed(self):
+        to_remove = [name for name, w in self._items.items() if w._is_complete]
+        for name in to_remove:
+            self._items[name].deleteLater()
+            del self._items[name]
+        self._refresh_badge()
 
     def clear(self):
         for w in self._items.values():
