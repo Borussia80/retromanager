@@ -1,13 +1,17 @@
 import os
+import sys
 
 APP_NAME = "retromanager"
+
+# When running from a PyInstaller bundle, resource files land in sys._MEIPASS.
+_BASE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 
 VERSION_MAJOR = 2
 VERSION_MINOR = 0
 VERSION_REVISION = "0 RC1"
 
-RESOURCES_FILE = os.path.join(os.path.split(__file__)[0], "resources.rcc")
-ICONS_DIR  = os.path.join(os.path.split(__file__)[0], "resources", "icons")
+RESOURCES_FILE = os.path.join(_BASE, "resources.rcc")
+ICONS_DIR  = os.path.join(_BASE, "resources", "icons")
 ICON_FILE  = os.path.join(ICONS_DIR, "icon_256.png")
 ABOUT_LOGO = os.path.join(ICONS_DIR, "about_dialog.png")
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", APP_NAME)
