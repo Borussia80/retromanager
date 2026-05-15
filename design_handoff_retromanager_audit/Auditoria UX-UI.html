@@ -1,0 +1,1529 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1280" />
+<title>Auditoria UX/UI · Retromanager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:        #0d1320;
+    --bg-2:      #131a2b;
+    --bg-3:      #1a2236;
+    --line:      #232c44;
+    --line-2:    #2c374f;
+    --ink:       #e6ebf5;
+    --ink-2:     #aab3c8;
+    --ink-3:     #6b7693;
+    --accent:    #f5a524;
+    --accent-2:  #ffb84a;
+    --crit:      #ef4f5c;
+    --warn:      #f5a524;
+    --sugg:      #5b9dff;
+    --ok:        #3fc680;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .serif { font-family: 'Instrument Serif', serif; font-weight: 400; letter-spacing: -0.01em; }
+  .mono  { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+  /* ────── Top bar ────── */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(13,19,32,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 48px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px;
+  }
+  .topbar .left { display: flex; align-items: center; gap: 14px; }
+  .topbar .logo {
+    width: 28px; height: 28px; border-radius: 6px;
+    background: linear-gradient(135deg, var(--accent), #d97706);
+    display: grid; place-items: center;
+    color: #1a1206; font-weight: 700; font-size: 13px;
+  }
+  .topbar .crumbs { color: var(--ink-2); }
+  .topbar .crumbs strong { color: var(--ink); font-weight: 600; }
+  .topbar .meta { color: var(--ink-3); display: flex; gap: 22px; }
+
+  /* ────── Layout ────── */
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 48px; }
+  section { padding: 56px 0; border-bottom: 1px solid var(--line); }
+  section:last-of-type { border-bottom: none; }
+
+  /* ────── Hero ────── */
+  .hero { padding: 88px 0 64px; }
+  .hero .eyebrow {
+    text-transform: uppercase; letter-spacing: 0.18em;
+    font-size: 11px; color: var(--accent); font-weight: 600;
+    margin-bottom: 24px;
+  }
+  .hero h1 {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    font-size: 88px;
+    line-height: 0.95;
+    letter-spacing: -0.025em;
+    margin: 0 0 32px;
+    max-width: 14ch;
+  }
+  .hero h1 em { font-style: italic; color: var(--accent); }
+  .hero .lede {
+    max-width: 62ch; font-size: 19px; line-height: 1.55;
+    color: var(--ink-2);
+  }
+  .hero .lede strong { color: var(--ink); font-weight: 500; }
+
+  /* ────── At-a-glance ────── */
+  .glance { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 56px; }
+  .stat {
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px 22px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat .num { font-family: 'Instrument Serif', serif; font-size: 56px; line-height: 1; letter-spacing: -0.03em; margin-bottom: 8px; }
+  .stat .lbl { font-size: 12px; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.12em; }
+  .stat .sub { font-size: 12px; color: var(--ink-3); margin-top: 6px; }
+  .stat.crit .num { color: var(--crit); }
+  .stat.warn .num { color: var(--warn); }
+  .stat.sugg .num { color: var(--sugg); }
+
+  /* ────── Section headers ────── */
+  .sec-head { margin-bottom: 36px; display: flex; align-items: baseline; gap: 18px; }
+  .sec-num {
+    font-family: 'Instrument Serif', serif; font-style: italic;
+    font-size: 26px; color: var(--accent); letter-spacing: -0.02em;
+  }
+  .sec-title { font-family: 'Instrument Serif', serif; font-size: 42px; letter-spacing: -0.02em; margin: 0; flex: 1; }
+  .sec-kicker { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.16em; }
+
+  /* ────── Findings ────── */
+  .finding {
+    display: grid; grid-template-columns: 1fr 480px; gap: 36px;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 18px;
+  }
+  .finding.wide { grid-template-columns: 1fr; }
+  .finding .head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+  .finding .id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--ink-3); letter-spacing: 0.04em;
+  }
+  .finding h3 { margin: 0; font-size: 21px; letter-spacing: -0.01em; flex: 1; }
+  .finding .desc { color: var(--ink-2); margin: 0 0 16px; }
+  .finding .desc p { margin: 0 0 10px; }
+  .finding .desc p:last-child { margin-bottom: 0; }
+  .finding .rec {
+    margin-top: 18px; padding-top: 18px;
+    border-top: 1px dashed var(--line-2);
+  }
+  .finding .rec .lbl {
+    font-size: 11px; color: var(--accent); text-transform: uppercase;
+    letter-spacing: 0.16em; font-weight: 600; margin-bottom: 8px;
+  }
+  .finding .rec ul { margin: 0; padding-left: 18px; color: var(--ink); }
+  .finding .rec li { margin-bottom: 6px; }
+  .finding .rec li::marker { color: var(--accent); }
+
+  /* Severity badges */
+  .sev {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .sev::before { content: ''; width: 6px; height: 6px; border-radius: 999px; }
+  .sev.crit { background: rgba(239,79,92,0.12); color: var(--crit); }
+  .sev.crit::before { background: var(--crit); }
+  .sev.warn { background: rgba(245,165,36,0.12); color: var(--warn); }
+  .sev.warn::before { background: var(--warn); }
+  .sev.sugg { background: rgba(91,157,255,0.12); color: var(--sugg); }
+  .sev.sugg::before { background: var(--sugg); }
+
+  /* Shot frame */
+  .shot {
+    background: #0a0f1c;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+  }
+  .shot img { display: block; width: 100%; height: auto; }
+  .shot .caption {
+    padding: 10px 14px;
+    font-size: 11px; color: var(--ink-3);
+    font-family: 'JetBrains Mono', monospace;
+    border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between;
+  }
+
+  /* Annotated shot — generic overlay */
+  .anno { position: absolute; pointer-events: none; }
+  .anno-box {
+    border: 2px solid var(--crit);
+    border-radius: 4px;
+    box-shadow: 0 0 0 1px rgba(239,79,92,0.25), 0 0 20px rgba(239,79,92,0.3);
+  }
+  .anno-pin {
+    background: var(--crit);
+    color: white;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+    transform: translate(-50%, -100%);
+    position: absolute;
+    top: -6px; left: 50%;
+  }
+  .anno.warn .anno-box { border-color: var(--warn); box-shadow: 0 0 0 1px rgba(245,165,36,0.25), 0 0 20px rgba(245,165,36,0.3); }
+  .anno.warn .anno-pin { background: var(--warn); color: #1a1206; }
+  .anno.sugg .anno-box { border-color: var(--sugg); box-shadow: 0 0 0 1px rgba(91,157,255,0.25), 0 0 20px rgba(91,157,255,0.3); }
+  .anno.sugg .anno-pin { background: var(--sugg); }
+
+  /* Annotated shot wrapper: ratio-locked */
+  .anno-wrap { position: relative; }
+  .anno-wrap img { display: block; width: 100%; }
+
+  /* ────── Big intro screen with hotspots ────── */
+  .overview {
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 36px;
+  }
+  .overview-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 36px; align-items: start; }
+  .overview h2 { font-family: 'Instrument Serif', serif; font-size: 38px; letter-spacing: -0.02em; margin: 0 0 14px; }
+  .overview p { color: var(--ink-2); margin: 0 0 14px; }
+  .hot-list { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 10px; }
+  .hot-list li {
+    display: flex; gap: 14px; align-items: baseline;
+    padding: 10px 14px;
+    background: var(--bg-3);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .hot-list .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--crit); font-weight: 600;
+    min-width: 24px;
+  }
+
+  /* ────── Redesign cards ────── */
+  .redesign {
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .redesign .head {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .redesign .head h3 { margin: 0; font-size: 18px; }
+  .redesign .head .badge {
+    font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.14em;
+  }
+  .ba-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .ba-grid > div { padding: 28px; }
+  .ba-grid > div + div { border-left: 1px solid var(--line); }
+  .ba-grid .lbl {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--ink-3); margin-bottom: 16px;
+  }
+  .ba-grid .lbl.before { color: var(--crit); }
+  .ba-grid .lbl.after { color: var(--ok); }
+
+  /* Mock dialog */
+  .mock-dialog {
+    background: #181f31;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 22px 22px 18px;
+    color: var(--ink);
+    font-size: 13px;
+  }
+  .mock-dialog .title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .mock-dialog .ico {
+    width: 32px; height: 32px; border-radius: 999px;
+    display: grid; place-items: center;
+    font-weight: 700; font-size: 14px;
+  }
+  .mock-dialog .ico.err { background: rgba(239,79,92,0.15); color: var(--crit); border: 1.5px solid rgba(239,79,92,0.5); }
+  .mock-dialog .ico.ok  { background: rgba(63,198,128,0.15); color: var(--ok);   border: 1.5px solid rgba(63,198,128,0.5); }
+  .mock-dialog .ico.info{ background: rgba(91,157,255,0.15); color: var(--sugg); border: 1.5px solid rgba(91,157,255,0.5); }
+  .mock-dialog h4 { margin: 0; font-size: 16px; font-weight: 600; }
+  .mock-dialog .filename {
+    background: #0d1320;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-2);
+    margin-bottom: 14px;
+  }
+  .hash-row {
+    display: grid; grid-template-columns: 60px 1fr auto;
+    align-items: center; gap: 12px;
+    padding: 8px 10px; border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  }
+  .hash-row .k { color: var(--ink-3); font-weight: 600; }
+  .hash-row .v { color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+  .hash-row.fail { background: rgba(239,79,92,0.06); }
+  .hash-row.fail .k { color: var(--crit); }
+  .hash-row.fail .v { color: var(--crit); }
+  .hash-row .expected {
+    grid-column: 2 / 3; font-size: 11px;
+    color: var(--ink-3); margin-top: 4px;
+    display: flex; gap: 8px; align-items: baseline;
+  }
+  .hash-row .expected b { color: var(--ink-2); font-weight: 500; }
+  .hash-row .check { color: var(--ok); }
+  .hash-row .x { color: var(--crit); }
+
+  .btn-row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+  .btn {
+    padding: 8px 16px; border-radius: 6px;
+    font-size: 13px; font-weight: 500;
+    border: 1px solid var(--line);
+    background: var(--bg-3); color: var(--ink);
+    cursor: pointer;
+  }
+  .btn.primary { background: #2a6fdb; border-color: #2a6fdb; color: white; }
+  .btn.ghost { background: transparent; }
+
+  /* Options dialog redesign */
+  .mock-options { background: #181f31; border-radius: 10px; padding: 22px; font-size: 13px; }
+  .mock-options .grp { margin-bottom: 20px; }
+  .mock-options .grp:last-child { margin-bottom: 0; }
+  .mock-options .grp-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--accent); margin-bottom: 10px; font-weight: 600;
+  }
+  .mock-options .row { display: grid; grid-template-columns: 180px 1fr; gap: 16px; align-items: center; padding: 10px 0; }
+  .mock-options .row + .row { border-top: 1px solid var(--line); }
+  .mock-options .label { color: var(--ink); font-weight: 500; }
+  .mock-options .helper { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+  .mock-options .ctrl input[type="number"],
+  .mock-options .ctrl input[type="text"] {
+    background: #0d1320; border: 1px solid var(--line);
+    color: var(--ink); border-radius: 5px; padding: 7px 10px;
+    font-family: inherit; font-size: 13px; width: 100%;
+  }
+  .mock-options .ctrl .group { display: flex; gap: 8px; align-items: center; }
+  .mock-options .ctrl .group input { flex: 1; }
+  .check { display: inline-flex; align-items: center; gap: 8px; }
+  .check input { accent-color: var(--accent); }
+
+  .warn-inline {
+    background: rgba(245,165,36,0.08);
+    border-left: 3px solid var(--warn);
+    color: var(--ink-2);
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-top: 8px;
+  }
+  .warn-inline b { color: var(--warn); font-weight: 600; }
+
+  /* Empty state mock */
+  .mock-empty {
+    background: #131a2b;
+    border: 1px dashed var(--line-2);
+    border-radius: 10px;
+    padding: 56px 32px;
+    text-align: center;
+  }
+  .mock-empty .ico { font-size: 32px; color: var(--ink-3); margin-bottom: 16px; }
+  .mock-empty h5 { margin: 0 0 6px; font-size: 17px; }
+  .mock-empty p { margin: 0 0 18px; color: var(--ink-3); font-size: 13px; max-width: 36ch; margin-inline: auto; }
+  .pill {
+    display: inline-block; padding: 4px 10px; border-radius: 999px;
+    background: rgba(91,157,255,0.12); color: var(--sugg);
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+    margin-right: 6px;
+  }
+
+  /* Download queue mock */
+  .mock-queue { background: #131a2b; border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+  .queue-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .queue-header h5 { margin: 0; font-size: 14px; }
+  .queue-header .count {
+    background: var(--accent); color: #1a1206;
+    font-weight: 700; font-size: 11px;
+    padding: 2px 8px; border-radius: 999px;
+  }
+  .queue-section { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-3); margin: 14px 0 8px; }
+  .queue-item {
+    background: var(--bg-3); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 8px;
+  }
+  .queue-item .title { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+  .queue-item .sub { font-size: 11px; color: var(--ink-3); font-family: 'JetBrains Mono', monospace; }
+  .progress {
+    height: 4px; background: var(--bg); border-radius: 999px; margin-top: 8px; overflow: hidden;
+  }
+  .progress .bar { height: 100%; background: var(--accent); border-radius: 999px; }
+  .queue-item.done .progress .bar { background: var(--ok); }
+  .queue-item.pend .progress .bar { background: var(--ink-3); width: 0; }
+  .queue-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .qbtn { font-size: 11px; padding: 3px 8px; background: transparent; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 4px; cursor: pointer; }
+
+  /* Priority matrix */
+  .matrix-wrap { background: var(--bg-2); border: 1px solid var(--line); border-radius: 16px; padding: 32px; }
+  .matrix {
+    position: relative;
+    width: 100%; aspect-ratio: 1.6;
+    background:
+      linear-gradient(to right, transparent 49.6%, var(--line) 49.6%, var(--line) 50.4%, transparent 50.4%),
+      linear-gradient(to bottom, transparent 49.6%, var(--line) 49.6%, var(--line) 50.4%, transparent 50.4%),
+      var(--bg-3);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .matrix .axis-x, .matrix .axis-y {
+    position: absolute; font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-3);
+  }
+  .matrix .axis-x { bottom: -28px; left: 50%; transform: translateX(-50%); }
+  .matrix .axis-y { top: 50%; left: -38px; transform: rotate(-90deg) translateX(50%); transform-origin: left center; white-space: nowrap; }
+  .matrix .tick { position: absolute; font-size: 10px; color: var(--ink-3); }
+  .matrix .tick.lo-eff { bottom: 8px; left: 12px; }
+  .matrix .tick.hi-eff { bottom: 8px; right: 12px; }
+  .matrix .tick.lo-imp { top: 8px; left: 12px; }
+  .matrix .tick.hi-imp { bottom: 24px; left: 12px; }
+  .matrix .quad-label {
+    position: absolute; font-family: 'Instrument Serif', serif;
+    font-size: 18px; color: var(--ink-3); font-style: italic;
+  }
+  .matrix .quad-label.tl { top: 12px; left: 16px; }
+  .matrix .quad-label.tr { top: 12px; right: 16px; }
+  .matrix .quad-label.bl { bottom: 12px; left: 16px; }
+  .matrix .quad-label.br { bottom: 12px; right: 16px; color: var(--accent); }
+  .dot {
+    position: absolute; transform: translate(-50%, 50%);
+    width: 28px; height: 28px; border-radius: 999px;
+    display: grid; place-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600;
+    border: 2px solid var(--bg-3);
+  }
+  .dot.crit { background: var(--crit); color: white; }
+  .dot.warn { background: var(--warn); color: #1a1206; }
+  .dot.sugg { background: var(--sugg); color: white; }
+  .matrix-legend { display: flex; gap: 22px; margin-top: 44px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); }
+  .matrix-legend .item { display: flex; gap: 8px; align-items: center; }
+  .matrix-legend .swatch { width: 12px; height: 12px; border-radius: 999px; }
+
+  /* Roadmap */
+  .roadmap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .road-col {
+    background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px;
+    padding: 24px;
+  }
+  .road-col h4 { margin: 0 0 4px; font-size: 16px; }
+  .road-col .when { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent); margin-bottom: 14px; }
+  .road-col ul { margin: 0; padding-left: 16px; }
+  .road-col li { margin-bottom: 8px; color: var(--ink-2); font-size: 13px; }
+  .road-col li b { color: var(--ink); font-weight: 500; }
+
+  /* ────── Footer ────── */
+  footer { padding: 56px 48px; text-align: center; color: var(--ink-3); font-size: 12px; }
+  footer .sig { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 16px; color: var(--ink-2); margin-bottom: 6px; }
+
+  /* Inline tag */
+  code.t { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: var(--bg-3); padding: 1px 6px; border-radius: 3px; color: var(--ink); border: 1px solid var(--line); }
+
+  /* Quote callout */
+  .callout {
+    border-left: 3px solid var(--accent);
+    padding: 10px 16px;
+    background: rgba(245,165,36,0.06);
+    color: var(--ink-2);
+    font-size: 13px;
+    border-radius: 0 6px 6px 0;
+    margin: 14px 0 0;
+  }
+
+  /* Two-up shot */
+  .two-up { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+</style>
+</head>
+<body>
+
+<!-- ─────────── TOP BAR ─────────── -->
+<div class="topbar">
+  <div class="left">
+    <div class="logo">R</div>
+    <div class="crumbs"><strong>Retromanager</strong> &nbsp;/&nbsp; Auditoria UX/UI</div>
+  </div>
+  <div class="meta">
+    <span>15 capturas</span>
+    <span>17 achados</span>
+    <span>maio 2026</span>
+  </div>
+</div>
+
+<!-- ─────────── HERO ─────────── -->
+<div class="wrap">
+  <section class="hero">
+    <div class="eyebrow">Auditoria de Produto · v0.1</div>
+    <h1 class="serif">Um app sólido <em>quase</em> escondido por mil pequenos atritos.</h1>
+    <p class="lede">
+      O Retromanager faz uma coisa difícil — catalogar e baixar 38&nbsp;mil ROMs de 17 plataformas — e faz bem.
+      A arquitetura de informação é clara: <strong>sidebar de plataformas, lista central, fila à direita</strong>.
+      O que segura o app é a <strong>camada de superfície</strong>: microcopy bilíngue, estados vazios negligenciados,
+      diálogos técnicos sem cuidado tipográfico e elementos sem rótulo. Esta auditoria documenta 17 achados
+      organizados por severidade, com proposta de redesenho para os três pontos de maior impacto.
+    </p>
+
+    <div class="glance">
+      <div class="stat crit"><div class="num">4</div><div class="lbl">Críticos</div><div class="sub">Bloqueiam ou confundem ações comuns</div></div>
+      <div class="stat warn"><div class="num">8</div><div class="lbl">Importantes</div><div class="sub">Atrito perceptível, não-bloqueante</div></div>
+      <div class="stat sugg"><div class="num">5</div><div class="lbl">Sugestões</div><div class="sub">Refinamentos de polimento</div></div>
+      <div class="stat"><div class="num">17</div><div class="lbl">Total</div><div class="sub">Em 15 telas analisadas</div></div>
+    </div>
+  </section>
+</div>
+
+<!-- ─────────── EXEC OVERVIEW ─────────── -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <span class="sec-num serif">i.</span>
+      <h2 class="sec-title serif">A tela inteira, em uma olhada.</h2>
+      <span class="sec-kicker">Top 5 atritos</span>
+    </div>
+
+    <div class="overview">
+      <div class="overview-grid">
+        <div class="anno-wrap">
+          <img src="shots/02_rom_list.png" alt="Tela principal" />
+          <!-- pins -->
+          <div class="anno" style="left: 18.5%; top: 11%; width: 49%; height: 4.4%"><div class="anno-box"></div><div class="anno-pin">1 · cabeçalho cortado</div></div>
+          <div class="anno warn" style="left: 0%; top: 89%; width: 18%; height: 7.5%"><div class="anno-box"></div><div class="anno-pin">2 · INTEGRAÇÕES sumidas no rodapé</div></div>
+          <div class="anno" style="left: 19%; top: 14%; width: 9%; height: 84%"><div class="anno-box"></div><div class="anno-pin">3 · MAME shortnames</div></div>
+          <div class="anno warn" style="left: 75%; top: 4%; width: 24%; height: 7%"><div class="anno-box"></div><div class="anno-pin">4 · contador e botão sem rótulo</div></div>
+          <div class="anno sugg" style="left: 76%; top: 4%; width: 6%; height: 6%"><div class="anno-box"></div><div class="anno-pin">5 · "0" como badge é confuso</div></div>
+        </div>
+        <div>
+          <h2 class="serif">Cinco coisas que um usuário novo nota nos primeiros 30 segundos.</h2>
+          <ol class="hot-list">
+            <li><span class="num">01</span><span>Cabeçalho da coluna "<b>JOGO</b>" aparece truncado como <code class="t">OGO</code>; "<b>FORMATO</b>" vira <code class="t">ORMAT</code>.</span></li>
+            <li><span class="num">02</span><span>O painel <b>INTEGRAÇÕES</b> mora no canto inferior esquerdo, com texto vermelho "Não encontrado" — parece erro, não configuração.</span></li>
+            <li><span class="num">03</span><span>A lista mostra <code class="t">005</code>, <code class="t">100lions</code>, <code class="t">10yard</code> — nomes técnicos do MAME, ilegíveis para humanos.</span></li>
+            <li><span class="num">04</span><span>O botão azul ao lado do contador "Downloads" não tem rótulo, ícone reconhecível nem tooltip aparente.</span></li>
+            <li><span class="num">05</span><span>Mistura de idiomas: <code class="t">Cache &amp; Database</code>, <code class="t">Download failed</code>, <code class="t">GroupBox</code> convivem com "Tentar novamente" e "Nenhum favorito".</span></li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ─────────── A · IDIOMA & MICROCOPY ─────────── -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <span class="sec-num serif">A.</span>
+      <h2 class="sec-title serif">Idioma &amp; microcopy</h2>
+      <span class="sec-kicker">3 achados</span>
+    </div>
+
+    <!-- A1 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">A·01</span>
+          <span class="sev crit">Crítico</span>
+          <h3>Diálogos misturam português e inglês na mesma frase</h3>
+        </div>
+        <p class="desc">
+          O diálogo de erro de download começa com o título "<b>Download failed</b>" em inglês, mas o botão primário diz
+          "<b>Tentar novamente</b>" e a mensagem secundária está em português ("O item permanece na fila…").
+          A janela de Opções é pior ainda: rótulos de seção em inglês (<code class="t">Cache &amp; Database</code>,
+          <code class="t">GroupBox</code>, <code class="t">Miscellaneous</code>) com helper text bilíngue ("<i>&lt;none&gt; will update the cache EVERY LAUNCH! (not recommanded)</i>" — também com erro de ortografia: <i>recommended</i>).
+        </p>
+        <p class="desc">
+          Para um usuário monolíngue isso é uma barreira real; para usuários bilíngues continua sendo ruído cognitivo
+          gratuito. A regra simples: <b>uma janela = um idioma</b>, sempre.
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Auditar todas as strings — extrair para um único arquivo de tradução (<code class="t">pt_BR.ts</code> + <code class="t">en_US.ts</code>).</li>
+            <li>Substituir <code class="t">GroupBox</code> (que é nome de widget Qt, não label!) por "<b>Pasta de Downloads</b>".</li>
+            <li>Corrigir "recommanded" → "<b>recomendado</b>".</li>
+            <li>Padronizar tom: avisos sérios não em <b>CAIXA-ALTA + vermelho gritante</b>. Use um alerta lateral discreto.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/12_download_error_dialog.png" alt="Diálogo de erro misturando idiomas" />
+        <div class="caption"><span>shots/12_download_error_dialog.png</span><span>EN + PT</span></div>
+      </div>
+    </article>
+
+    <!-- A2 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">A·02</span>
+          <span class="sev crit">Crítico</span>
+          <h3>O rótulo "GroupBox" vaza um nome de widget na UI</h3>
+        </div>
+        <p class="desc">
+          Na janela Opções, o cabeçalho do segundo bloco diz literalmente <code class="t">GroupBox</code>.
+          Esse é o nome padrão do componente em Qt Designer — sinal claro de que alguém esqueceu de renomear.
+          Para o usuário final, é uma "palavra alienígena" que torna o app amador.
+        </p>
+        <div class="callout">
+          Sinal de alerta geral: rótulos como <code class="t">GroupBox</code>, <code class="t">Frame</code>,
+          <code class="t">pushButton_2</code> ou <code class="t">label_3</code> precisam ser caçados em todo o
+          <code class="t">.ui</code>/<code class="t">.qml</code> antes do próximo release.
+        </div>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Renomear para "<b>Local de download</b>" (mais natural que "Caminho de download").</li>
+            <li>Fazer uma busca por <code class="t">groupBox</code>, <code class="t">label_</code>,
+              <code class="t">pushButton_</code> em todo o código-fonte da UI.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/11_options_dialog.png" alt="Janela de Opções com label GroupBox" />
+        <div class="caption"><span>shots/11_options_dialog.png</span><span>label técnico exposto</span></div>
+      </div>
+    </article>
+
+    <!-- A3 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">A·03</span>
+          <span class="sev warn">Importante</span>
+          <h3>A janela "Sobre" descreve o app em inglês para um usuário em pt-BR</h3>
+        </div>
+        <p class="desc">
+          Toda a UI principal está em pt-BR (menus "Opções", "Ajuda", "Plataformas", "Favoritos") mas o texto
+          descritivo no diálogo Sobre — "Browse and download retro game ROMs directly from archive.org. Supports
+          17+ platforms…" — continua em inglês. Também: o nome do app aparece em <b>caixa-baixa</b>
+          ("retromanager") embora o resto do produto use "Retromanager".
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Traduzir descrição e legenda "Released under the MIT License".</li>
+            <li>Normalizar capitalização: "<b>Retromanager</b>" como nome próprio.</li>
+            <li>Subtítulo em pt: "<b>Gerenciador de biblioteca de jogos retro</b>".</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/10_about_dialog.png" alt="Diálogo Sobre em inglês" />
+        <div class="caption"><span>shots/10_about_dialog.png</span><span>capitalização + idioma</span></div>
+      </div>
+    </article>
+  </section>
+</div>
+
+<!-- ─────────── B · ESTADOS VAZIOS ─────────── -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <span class="sec-num serif">B.</span>
+      <h2 class="sec-title serif">Estados vazios &amp; feedback</h2>
+      <span class="sec-kicker">3 achados</span>
+    </div>
+
+    <!-- B1 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">B·01</span>
+          <span class="sev crit">Crítico</span>
+          <h3>Filtro de região sem resultados deixa a tela completamente em branco</h3>
+        </div>
+        <p class="desc">
+          Selecionar <b>USA</b> em uma plataforma como MAME (cujos ROMs raramente carregam tag de região) zera a
+          lista — e o app não mostra nada. Nem mensagem, nem ilustração, nem dica para limpar o filtro. A barra
+          de status diz "0 itens visíveis" e é só isso. O usuário não tem como saber se travou, se está
+          carregando, ou se o filtro está vazio mesmo.
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Empty state explicativo: ícone + título + ação ("Limpar filtros" ou "Mostrar todas as regiões").</li>
+            <li>Mostrar o filtro ativo como <b>chip removível</b> acima da lista para deixar claro o que está filtrando.</li>
+            <li>Texto: "<b>Nenhum ROM marcado como USA em MAME.</b> Tente outra região ou remova o filtro."</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/05_region_filter_usa.png" alt="Filtro USA vazio" />
+        <div class="caption"><span>shots/05_region_filter_usa.png</span><span>0 itens, 0 contexto</span></div>
+      </div>
+    </article>
+
+    <!-- B2 -->
+    <article class="finding wide">
+      <div class="head">
+        <span class="id">B·02</span>
+        <span class="sev warn">Importante</span>
+        <h3>Estados vazios são inconsistentes em tom e localização</h3>
+      </div>
+      <p class="desc">
+        Existem três jeitos diferentes de o app dizer "não tem nada aqui":
+      </p>
+      <div class="two-up" style="margin: 8px 0 16px;">
+        <div class="shot"><img src="shots/01_empty_state.png" /><div class="caption"><span>Inicial · "Selecione uma plataforma à esquerda…"</span></div></div>
+        <div class="shot"><img src="shots/06_favorites_empty.png" /><div class="caption"><span>Favoritos · texto pendurado na 1ª linha da tabela</span></div></div>
+      </div>
+      <p class="desc">
+        O caso dos Favoritos é o mais sintomático: a mensagem "Nenhum favorito ainda. Clique com o botão direito
+        em um jogo e escolha Favoritar." aparece como <b>conteúdo de uma linha da tabela</b>, alinhado à esquerda,
+        com o cabeçalho da tabela ainda visível acima. Isso fere a primeira regra do empty state: <b>parecer
+        intencional, não um bug de renderização</b>.
+      </p>
+      <div class="rec">
+        <div class="lbl">Recomendação</div>
+        <ul>
+          <li>Componente reutilizável <code class="t">&lt;EmptyState&gt;</code> com <b>ícone, título, descrição e ação primária</b>.</li>
+          <li>Centralizar o conteúdo na área da lista; esconder cabeçalho de coluna quando não há linhas.</li>
+          <li>Variar o tom por contexto: dica útil para favoritos, instrução clara para "nada selecionado".</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- B3 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">B·03</span>
+          <span class="sev warn">Importante</span>
+          <h3>"Mostrando 500 de 14.769 ROMs" aparece sem que nenhuma linha esteja visível</h3>
+        </div>
+        <p class="desc">
+          Em uma das capturas, a área da lista mostra apenas o aviso "Mostrando 500 de 14.769 ROMs — use a busca para
+          filtrar.", mas a lista em si está vazia. Isso sugere algum estado de transição entre filtros, mas o usuário
+          não tem como saber. Se há 500 itens carregados, por que a tabela está em branco? E se a intenção é
+          <b>esconder a lista até refinar o filtro</b>, é uma escolha discutível: melhor mostrar os 500 e dizer
+          "há mais 14.269 fora da tela" do que não mostrar nada.
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Sempre mostrar a primeira página de resultados; nunca esconder a lista para "forçar" busca.</li>
+            <li>Banner persistente no topo da lista: "Mostrando 500 de 14.769 — refine a busca para ver mais."</li>
+            <li>Botão "Carregar todos" para usuários que querem rolar a biblioteca inteira (com aviso de performance).</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/09_technical_columns.png" alt="500 de 14769 mas lista vazia" />
+        <div class="caption"><span>shots/09_technical_columns.png</span><span>contagem vs. conteúdo desalinhados</span></div>
+      </div>
+    </article>
+  </section>
+</div>
+
+<!-- ─────────── C · DIÁLOGOS ─────────── -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <span class="sec-num serif">C.</span>
+      <h2 class="sec-title serif">Diálogos modais</h2>
+      <span class="sec-kicker">3 achados</span>
+    </div>
+
+    <!-- C1 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">C·01</span>
+          <span class="sev warn">Importante</span>
+          <h3>Verificação de hash funciona, mas a comparação esperado×encontrado é difícil de ler</h3>
+        </div>
+        <p class="desc">
+          No caso de falha, o app mostra o MD5 calculado em vermelho e, abaixo, uma linha "<b>Esperado:</b>" com o
+          valor correto. Como as duas strings têm 32 caracteres e estão em fontes muito parecidas, comparar
+          caractere a caractere visualmente é exaustivo. Faltam: <b>diff colorido</b>, opção de copiar, e um
+          resumo simples acima ("3 de 3 verificações ✕ falharam").
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Linha de hash com <b>diff por caractere</b> destacando só onde diverge.</li>
+            <li>Ícone clicável de "copiar" em cada hash.</li>
+            <li>Botão "Re-baixar este ROM" como ação primária quando há falha (não só "OK").</li>
+            <li>Mostrar o algoritmo mais provável de ser consultado primeiro (CRC32 para validação de cartucho).</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/14_hash_fail_dialog.png" alt="Diálogo de falha de hash" />
+        <div class="caption"><span>shots/14_hash_fail_dialog.png</span><span>diff visual ausente</span></div>
+      </div>
+    </article>
+
+    <!-- C2 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">C·02</span>
+          <span class="sev warn">Importante</span>
+          <h3>Aviso de cache em CAIXA-ALTA vermelha quebra a hierarquia visual</h3>
+        </div>
+        <p class="desc">
+          O texto "<code class="t">&lt;none&gt; will update the cache EVERY LAUNCH! (not recommanded)</code>"
+          está em vermelho vivo, todo maiúsculo, em inglês, com erro de ortografia e referenciando um valor
+          (<code class="t">&lt;none&gt;</code>) que <b>nem está visível na tela</b>. É um aviso importante, mas
+          formatado como erro grave.
+        </p>
+        <p class="desc">
+          Mais: a relação entre o campo "30" (dias) e o aviso é ambígua. Só lendo com atenção o usuário entende
+          que digitar <code class="t">none</code> ou <code class="t">0</code> dispara a recarga total — mas a
+          interface não dá nenhuma pista de que esses valores especiais existem.
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Substituir campo livre por <b>seletor com presets</b>: "Diário · Semanal · Mensal · Trimestral · Nunca".</li>
+            <li>Helper text discreto em cinza, não vermelho.</li>
+            <li>Confirmar com toast quando o valor extremo for selecionado.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/11_options_dialog.png" alt="Aviso vermelho gritante" />
+        <div class="caption"><span>shots/11_options_dialog.png</span><span>tom desproporcional</span></div>
+      </div>
+    </article>
+
+    <!-- C3 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">C·03</span>
+          <span class="sev sugg">Sugestão</span>
+          <h3>Botão "browse" do campo de pasta aparece como um ponto solitário</h3>
+        </div>
+        <p class="desc">
+          Ao lado do campo "Download path", existe um botão pequeno cujo conteúdo é apenas "<code class="t">.</code>".
+          O usuário precisa adivinhar que aquilo abre o seletor de pasta. Em apps Qt nativos isso costuma vir como
+          "…", mas a versão atual está literalmente com um ponto baixo, o que parece um typo ou bug de
+          renderização.
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Usar reticências (…) ou um <b>ícone de pasta</b> com tooltip "Escolher pasta…".</li>
+            <li>Permitir <b>arrastar &amp; soltar</b> uma pasta sobre o campo.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/11_options_dialog.png" alt="Botão ponto solitário" />
+        <div class="caption"><span>shots/11_options_dialog.png · botão "."</span><span>affordance fraca</span></div>
+      </div>
+    </article>
+  </section>
+</div>
+
+<!-- ─────────── D · LISTAGEM ─────────── -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <span class="sec-num serif">D.</span>
+      <h2 class="sec-title serif">Lista de ROMs</h2>
+      <span class="sec-kicker">3 achados</span>
+    </div>
+
+    <!-- D1 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">D·01</span>
+          <span class="sev crit">Crítico</span>
+          <h3>Nomes de ROM são shortnames técnicos do MAME, não nomes de jogos</h3>
+        </div>
+        <p class="desc">
+          A lista mostra <code class="t">005</code>, <code class="t">100lions</code>, <code class="t">10yard</code>,
+          <code class="t">1942</code>, <code class="t">18wheelr</code>… Cada um deles tem um nome real
+          ("10-Yard Fight", "18 Wheeler", "1942") disponível no XML do MAME (<code class="t">&lt;description&gt;</code>)
+          e no archive.org. Para usuários casuais — provavelmente a maioria — a lista atual é praticamente ilegível.
+        </p>
+        <p class="desc">
+          A busca também sofre: digitar "Donkey Kong" não encontra <code class="t">dkong</code>, e digitar
+          "Mario" só funciona quando o shortname contém "mario".
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Coluna primária: <b>nome amigável</b> ("10-Yard Fight"). Coluna secundária pequena: shortname (<code class="t">10yard</code>).</li>
+            <li>Busca cobre os dois campos. Mostrar match em destaque na coluna que casou.</li>
+            <li>Mostrar <b>ano e fabricante</b> quando disponível ("1983 · Irem"). Para uma lista de 14k ROMs isso ajuda muito a achar a coisa certa.</li>
+            <li>Quando offline, manter shortname; quando online, hidratar com metadados.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/02_rom_list.png" alt="Lista MAME com shortnames" />
+        <div class="caption"><span>shots/02_rom_list.png</span><span>14.769 strings ilegíveis</span></div>
+      </div>
+    </article>
+
+    <!-- D2 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">D·02</span>
+          <span class="sev crit">Crítico</span>
+          <h3>Cabeçalhos de coluna são truncados visivelmente</h3>
+        </div>
+        <p class="desc">
+          Em vários screenshots os cabeçalhos aparecem como <code class="t">OGO</code> (em vez de "JOGO") e
+          <code class="t">ORMAT</code> (em vez de "FORMATO"). Quando a tabela técnica está ativa (com MD5,
+          CRC32, SHA1), as colunas ainda ficam sobrepostas e o problema piora. Tabela sem largura mínima de
+          coluna é um defeito de implementação que envelhece o produto.
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li><b>Largura mínima por coluna</b> + truncamento por reticências no conteúdo, nunca no cabeçalho.</li>
+            <li>Cabeçalho com <b>tooltip</b> mostrando o nome completo se truncar.</li>
+            <li>Colunas técnicas (MD5/CRC32/SHA1) atrás de um toggle "Mostrar hashes" — não default.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/04_grid_view.png" alt="Cabeçalhos truncados" />
+        <div class="caption"><span>shots/04_grid_view.png</span><span>"OGO" e "ORMAT"</span></div>
+      </div>
+    </article>
+
+    <!-- D3 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">D·03</span>
+          <span class="sev sugg">Sugestão</span>
+          <h3>O badge "ZIP" repete-se em todas as linhas — redundância visual</h3>
+        </div>
+        <p class="desc">
+          Como praticamente todo ROM da biblioteca é ZIP, o badge "ZIP" verde-acinzentado aparece em todas as
+          linhas. Quando todos os valores de uma coluna são iguais, a coluna é ruído. Vale exibir o formato só
+          quando for diferente do default, ou agrupar formato como ícone discreto colado ao nome.
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Mostrar "ZIP" apenas em linhas onde formato ≠ default da plataforma.</li>
+            <li>Ou mover para a coluna de tamanho: "<b>10.8 MB · zip</b>" — texto pequeno, sem badge.</li>
+            <li>Liberar espaço para uma nova coluna útil (ano, região, fabricante).</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/03_search_filter.png" alt="Coluna ZIP repetida" />
+        <div class="caption"><span>shots/03_search_filter.png</span><span>14 linhas, 14 ZIP</span></div>
+      </div>
+    </article>
+  </section>
+</div>
+
+<!-- ─────────── E · DOWNLOADS ─────────── -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <span class="sec-num serif">E.</span>
+      <h2 class="sec-title serif">Painel de Downloads</h2>
+      <span class="sec-kicker">2 achados</span>
+    </div>
+
+    <!-- E1 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">E·01</span>
+          <span class="sev warn">Importante</span>
+          <h3>Fila não mostra progresso, tamanho, velocidade nem ETA — só "Na fila"</h3>
+        </div>
+        <p class="desc">
+          O painel direito lista cada download como duas linhas: nome curto e a string "Na fila". Sem barra de
+          progresso, sem indicação do que está baixando agora vs. o que está esperando, sem velocidade, sem ETA.
+          Para um app cuja função principal é baixar arquivos potencialmente grandes (100+ MB), isso é o
+          equivalente a uma loja de e-commerce que esconde o status do pedido.
+        </p>
+        <p class="desc">
+          Faltam também ações por item: cancelar, mover para o topo, abrir pasta, retentar.
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Seções no painel: <b>Baixando agora · Em fila · Concluídos · Com erro</b>.</li>
+            <li>Por item: nome amigável, tamanho, % baixado, barra de progresso, velocidade quando ativo.</li>
+            <li>Ações inline: cancelar (×), prioridade (↑), abrir pasta (após concluído).</li>
+            <li>Limite paralelo configurável em Opções (default 2 ou 3).</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/08_download_queue_panel.png" alt="Fila sem progresso" />
+        <div class="caption"><span>shots/08_download_queue_panel.png</span><span>4 itens, 0 informação</span></div>
+      </div>
+    </article>
+
+    <!-- E2 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">E·02</span>
+          <span class="sev sugg">Sugestão</span>
+          <h3>O botão azul ao lado do contador "Downloads" não tem rótulo nem ícone</h3>
+        </div>
+        <p class="desc">
+          Existe um quadrado azul cheio ao lado do contador "0/4" no cabeçalho do painel direito. Pode ser
+          "Pausar tudo", "Iniciar tudo", "Limpar fila" — impossível dizer sem clicar. Quando vazio, fica azul
+          desabilitado; com itens, azul vivo. A diferença não comunica a função.
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Trocar por <b>ícone reconhecível</b> (▶ Iniciar tudo · ❚❚ Pausar tudo · ⨯ Limpar concluídos).</li>
+            <li>Sempre com tooltip explicando ação e atalho de teclado.</li>
+            <li>Em vez de um botão único, considerar um menu de overflow com 3 ações.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/08_download_queue_panel.png" alt="Botão azul ambíguo" />
+        <div class="caption"><span>shots/08_download_queue_panel.png · canto sup. direito</span><span>função obscura</span></div>
+      </div>
+    </article>
+  </section>
+</div>
+
+<!-- ─────────── F · SIDEBAR ─────────── -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <span class="sec-num serif">F.</span>
+      <h2 class="sec-title serif">Sidebar &amp; navegação</h2>
+      <span class="sec-kicker">3 achados</span>
+    </div>
+
+    <!-- F1 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">F·01</span>
+          <span class="sev crit">Crítico</span>
+          <h3>"INTEGRAÇÕES" mora no rodapé do sidebar parecendo erro permanente</h3>
+        </div>
+        <p class="desc">
+          No canto inferior esquerdo, há um bloco "INTEGRAÇÕES" listando <b>RetroArch</b> e <b>Lutris</b> com
+          o texto "<i>Não encontrado</i>" em vermelho-laranja. Três problemas:
+        </p>
+        <ul style="margin: 0 0 14px; color: var(--ink-2); padding-left: 18px;">
+          <li>O usuário não pediu nada — por que o app está chorando que algo não foi encontrado?</li>
+          <li>"Não encontrado" sugere erro, não "ainda não configurado".</li>
+          <li>Posicionar isso no sidebar de plataformas mistura dois conceitos (navegar vs. configurar).</li>
+        </ul>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Mover Integrações para a janela de <b>Opções</b> (aba "Integrações").</li>
+            <li>Trocar tom: "Configure" / "Não configurado" / "Ativo" — não "Não encontrado".</li>
+            <li>Se a presença no sidebar é desejada, mostrar só quando estiver <b>ativa</b> ("RetroArch ✓ pronto"), nunca como aviso de falta.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/15_integrations_panel.png" alt="Painel INTEGRAÇÕES" style="display:block; width:100%; background:#0d1320;" />
+        <div class="caption"><span>shots/15_integrations_panel.png</span><span>aviso permanente vermelho</span></div>
+      </div>
+    </article>
+
+    <!-- F2 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">F·02</span>
+          <span class="sev warn">Importante</span>
+          <h3>Contagens da sidebar mudam de unidade sem padrão claro</h3>
+        </div>
+        <p class="desc">
+          As linhas mostram "1.958 títulos", "14.769 títulos", "Nenhum ainda", "1 títulos"… A palavra "títulos"
+          é redundante (a sidebar já é "Plataformas") e a forma "1 títulos" está gramaticalmente errada (singular).
+          A barra de status no rodapé usa "itens" para a mesma coisa: "14.769 itens", "Arcade · MAME: 14.769 itens".
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Padronizar unidade: <b>"itens"</b> em todo o app (ou "ROMs", se quiser ser específico).</li>
+            <li>Pluralização correta: <b>"1 item · 1.958 itens"</b>.</li>
+            <li>Na sidebar, contagem pequena à direita, em cinza secundário, sem palavra: "<code class="t">1.958</code>".</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/07_favorites_with_entry.png" alt="Favoritos com 1 título" />
+        <div class="caption"><span>shots/07_favorites_with_entry.png</span><span>"1 títulos"</span></div>
+      </div>
+    </article>
+
+    <!-- F3 -->
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">F·03</span>
+          <span class="sev sugg">Sugestão</span>
+          <h3>Ícone "64" não identifica o Nintendo 64 sem contexto</h3>
+        </div>
+        <p class="desc">
+          Os badges quadrados de plataforma usam abreviações ("ARC", "A26", "GBA", "NES", "FDS"…), o que funciona
+          bem. Mas o Nintendo 64 aparece como literalmente <b>"64"</b>, sem o "N". Para alguém que conhece o N64
+          é óbvio; para alguém que não conhece, parece código de erro.
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Padronizar para <b>"N64"</b>.</li>
+            <li>Revisar outros badges: "FDS" (Famicom Disk System) é correto mas obscuro; considerar tooltip.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/01_empty_state.png" alt="Badge 64" />
+        <div class="caption"><span>shots/01_empty_state.png · linha N64</span><span>ambiguidade</span></div>
+      </div>
+    </article>
+  </section>
+</div>
+
+<!-- ─────────── G · MISC ─────────── -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <span class="sec-num serif">G.</span>
+      <h2 class="sec-title serif">Refinamentos diversos</h2>
+      <span class="sec-kicker">3 achados</span>
+    </div>
+
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">G·01</span>
+          <span class="sev sugg">Sugestão</span>
+          <h3>Ícones de view-toggle sem rótulo nem tooltip aparente</h3>
+        </div>
+        <p class="desc">
+          Os dois botões pequenos à direita dos filtros de região (parecem ":" e "⋮") provavelmente alternam
+          entre vista lista e vista grade. O usuário precisa adivinhar. Sem tooltip, sem rótulo, sem ícone
+          reconhecível, e a separação visual por "|" entre eles é mais ruído.
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Ícones claros (linhas horizontais para lista, grade de pontos para grade).</li>
+            <li>Estado selecionado destacado com background; estado inativo só borda.</li>
+            <li>Tooltip + atalho ("Lista · Ctrl+1", "Grade · Ctrl+2").</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/02_rom_list.png" alt="Toggles de view" />
+        <div class="caption"><span>shots/02_rom_list.png · topo central-direita</span><span>função desconhecida</span></div>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">G·02</span>
+          <span class="sev sugg">Sugestão</span>
+          <h3>Falta um painel de detalhes do ROM</h3>
+        </div>
+        <p class="desc">
+          Clicar em um ROM hoje seleciona a linha mas não revela nada além do que já está na tabela. Faltam:
+          screenshot da caixa/cartucho, ano, gênero, descrição, hash esperado pré-download, link para a página
+          original no archive.org. Esse painel poderia ocupar o lado direito quando não há download em curso,
+          ou aparecer como inspector inferior.
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Painel direito comuta entre <b>Detalhes do item selecionado</b> e <b>Fila de download</b>.</li>
+            <li>Buscar metadados de IGDB, screenscraper.fr ou TGDB; em última instância scrappear do archive.org.</li>
+            <li>Mostrar capa em placeholder até carregar (não inventar nada).</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/02_rom_list.png" alt="Lista sem detalhes" />
+        <div class="caption"><span>shots/02_rom_list.png</span><span>nada além da linha</span></div>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="body">
+        <div class="head">
+          <span class="id">G·03</span>
+          <span class="sev sugg">Sugestão</span>
+          <h3>Campo de busca sem ícone de lupa, sem botão de limpar, sem atalho visível</h3>
+        </div>
+        <p class="desc">
+          Funciona bem como input, mas faltam três affordances padrão: <b>ícone de lupa</b> à esquerda,
+          <b>botão ⨯ de limpar</b> quando há texto, e dica de <b>atalho</b> (<code class="t">Ctrl + F</code>).
+          A placeholder também é longa demais ("Buscar por título, região, versão, protótipo, beta…") e
+          desfoca o que realmente importa: buscar por título.
+        </p>
+        <div class="rec">
+          <div class="lbl">Recomendação</div>
+          <ul>
+            <li>Ícone de lupa à esquerda; ⨯ aparece quando há texto.</li>
+            <li>Placeholder curto: "Buscar ROMs…"; dicas avançadas em um link "Filtros avançados".</li>
+            <li>Atalho à direita: <code class="t">⌘F</code>/<code class="t">Ctrl F</code>.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shot">
+        <img src="shots/03_search_filter.png" alt="Campo de busca" />
+        <div class="caption"><span>shots/03_search_filter.png</span><span>affordances ausentes</span></div>
+      </div>
+    </article>
+  </section>
+</div>
+
+<!-- ─────────── REDESENHOS ─────────── -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <span class="sec-num serif">ii.</span>
+      <h2 class="sec-title serif">Como ficaria, depois.</h2>
+      <span class="sec-kicker">3 propostas de redesenho</span>
+    </div>
+
+    <!-- Redesign 1: Hash dialog -->
+    <div class="redesign" style="margin-bottom: 24px;">
+      <div class="head">
+        <h3>Diálogo de verificação de hash</h3>
+        <span class="badge">Achado C·01</span>
+      </div>
+      <div class="ba-grid">
+        <div>
+          <div class="lbl before">Antes</div>
+          <div class="shot"><img src="shots/14_hash_fail_dialog.png" alt="antes" /></div>
+        </div>
+        <div>
+          <div class="lbl after">Depois</div>
+          <div class="mock-dialog">
+            <div class="title-row">
+              <div class="ico err">✕</div>
+              <div>
+                <h4>Falha na verificação</h4>
+                <div style="font-size:11px; color:var(--ink-3);">2 de 3 algoritmos divergem</div>
+              </div>
+            </div>
+            <div class="filename">Super Mario World (USA).smc</div>
+
+            <div class="hash-row fail">
+              <span class="k">MD5</span>
+              <span class="v"><span style="background:rgba(239,79,92,0.25); padding:1px 2px; border-radius:2px;">deadbeef</span>deadbeefdeadbeefdeadbeef</span>
+              <span class="x">✕</span>
+            </div>
+            <div class="hash-row" style="padding-top:0;">
+              <span class="k" style="color:var(--ok); font-size:10px;">esp.</span>
+              <span class="v" style="color:var(--ok);"><span style="background:rgba(63,198,128,0.18); padding:1px 2px; border-radius:2px;">a1b2c3d4</span>e5f6a1b2c3d4e5f6a1b2c3d4</span>
+              <button class="qbtn" style="border-color:var(--line);">copiar</button>
+            </div>
+
+            <div class="hash-row" style="margin-top:6px;">
+              <span class="k">SHA1</span>
+              <span class="v">da39a3ee5e6b4b0d3255bfef95601890afd80709</span>
+              <span class="check">✓</span>
+            </div>
+            <div class="hash-row">
+              <span class="k">CRC32</span>
+              <span class="v">d87f7e0c</span>
+              <span class="check">✓</span>
+            </div>
+
+            <div class="btn-row">
+              <button class="btn ghost">Manter arquivo</button>
+              <button class="btn primary">Re-baixar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Redesign 2: Options -->
+    <div class="redesign" style="margin-bottom: 24px;">
+      <div class="head">
+        <h3>Janela de Opções</h3>
+        <span class="badge">Achados A·02 · C·02 · C·03</span>
+      </div>
+      <div class="ba-grid">
+        <div>
+          <div class="lbl before">Antes</div>
+          <div class="shot"><img src="shots/11_options_dialog.png" alt="antes" /></div>
+        </div>
+        <div>
+          <div class="lbl after">Depois</div>
+          <div class="mock-options">
+            <div class="grp">
+              <div class="grp-title">Cache &amp; biblioteca</div>
+              <div class="row">
+                <div>
+                  <div class="label">Atualizar catálogo</div>
+                  <div class="helper">Quando buscar a lista de ROMs no archive.org.</div>
+                </div>
+                <div class="ctrl">
+                  <select style="width:100%; background:#0d1320; border:1px solid var(--line); color:var(--ink); padding:7px 10px; border-radius:5px; font-family:inherit;">
+                    <option>A cada 30 dias (recomendado)</option>
+                    <option>A cada 7 dias</option>
+                    <option>Mensal</option>
+                    <option>Toda inicialização</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="grp">
+              <div class="grp-title">Local de download</div>
+              <div class="row">
+                <div>
+                  <div class="label">Pasta de ROMs</div>
+                  <div class="helper">Onde os arquivos baixados serão salvos.</div>
+                </div>
+                <div class="ctrl">
+                  <div class="group">
+                    <input type="text" value="/home/rmilet/Jogos/ROMs" />
+                    <button class="btn" style="padding:7px 12px;">Escolher…</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="grp">
+              <div class="grp-title">Comportamento</div>
+              <div class="row">
+                <div>
+                  <div class="label">Descompactar após baixar</div>
+                  <div class="helper">Útil pra emuladores que não leem .zip.</div>
+                </div>
+                <div class="ctrl"><label class="check"><input type="checkbox" checked /> Ativar</label></div>
+              </div>
+              <div class="row">
+                <div>
+                  <div class="label">Checar atualizações</div>
+                  <div class="helper">Buscar nova versão do app ao iniciar.</div>
+                </div>
+                <div class="ctrl"><label class="check"><input type="checkbox" /> Ativar</label></div>
+              </div>
+            </div>
+
+            <div class="btn-row">
+              <button class="btn ghost">Cancelar</button>
+              <button class="btn primary">Salvar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Redesign 3: Download queue -->
+    <div class="redesign">
+      <div class="head">
+        <h3>Painel de Downloads</h3>
+        <span class="badge">Achados E·01 · E·02</span>
+      </div>
+      <div class="ba-grid">
+        <div>
+          <div class="lbl before">Antes</div>
+          <div class="shot"><img src="shots/08_download_queue_panel.png" alt="antes" /></div>
+        </div>
+        <div>
+          <div class="lbl after">Depois</div>
+          <div class="mock-queue">
+            <div class="queue-header">
+              <div style="display:flex; gap:10px; align-items:center;">
+                <h5>Downloads</h5>
+                <span class="count">4</span>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="qbtn" title="Pausar tudo">❚❚</button>
+                <button class="qbtn" title="Limpar concluídos">⨯</button>
+              </div>
+            </div>
+
+            <div class="queue-section">Baixando · 1</div>
+            <div class="queue-item">
+              <div class="title">10-Yard Fight <span style="color:var(--ink-3); font-weight:400;">· 10yard</span></div>
+              <div class="sub">148.9 KB · 64% · 1.2 MB/s · 12s restantes</div>
+              <div class="progress"><div class="bar" style="width:64%"></div></div>
+            </div>
+
+            <div class="queue-section">Em fila · 3</div>
+            <div class="queue-item pend">
+              <div class="title">100 Lions <span style="color:var(--ink-3); font-weight:400;">· 100lions</span></div>
+              <div class="sub">10.8 MB · aguardando</div>
+              <div class="progress"><div class="bar"></div></div>
+            </div>
+            <div class="queue-item pend">
+              <div class="title">110 Dance <span style="color:var(--ink-3); font-weight:400;">· 110dance</span></div>
+              <div class="sub">22.9 MB · aguardando</div>
+              <div class="progress"><div class="bar"></div></div>
+            </div>
+            <div class="queue-item pend">
+              <div class="title">1942 <span style="color:var(--ink-3); font-weight:400;">· 1942</span></div>
+              <div class="sub">466.5 KB · aguardando</div>
+              <div class="progress"><div class="bar"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ─────────── PRIORITY MATRIX ─────────── -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <span class="sec-num serif">iii.</span>
+      <h2 class="sec-title serif">Onde começar.</h2>
+      <span class="sec-kicker">Impacto × Esforço</span>
+    </div>
+
+    <div class="matrix-wrap">
+      <div class="matrix">
+        <span class="quad-label tl">não vale</span>
+        <span class="quad-label tr">depois</span>
+        <span class="quad-label bl">polimento</span>
+        <span class="quad-label br">faça agora</span>
+
+        <!-- Quick wins (bottom-right) -->
+        <div class="dot crit" style="left: 78%; bottom: 18%;" title="A·02 GroupBox">A2</div>
+        <div class="dot crit" style="left: 70%; bottom: 28%;" title="A·01 idiomas mistos">A1</div>
+        <div class="dot crit" style="left: 80%; bottom: 35%;" title="F·01 Integrações">F1</div>
+        <div class="dot crit" style="left: 72%; bottom: 12%;" title="D·02 cabeçalhos">D2</div>
+        <div class="dot warn" style="left: 88%; bottom: 8%;"  title="A·03 Sobre">A3</div>
+        <div class="dot warn" style="left: 82%; bottom: 22%;" title="F·02 plural">F2</div>
+        <div class="dot warn" style="left: 65%; bottom: 40%;" title="C·02 alerta cache">C2</div>
+        <div class="dot warn" style="left: 90%; bottom: 30%;" title="C·03 botão .">C3</div>
+
+        <!-- Big bets (top-right) -->
+        <div class="dot crit" style="left: 62%; bottom: 70%;" title="D·01 shortnames">D1</div>
+        <div class="dot crit" style="left: 70%; bottom: 80%;" title="B·01 empty filtros">B1</div>
+        <div class="dot warn" style="left: 60%; bottom: 62%;" title="E·01 progresso">E1</div>
+        <div class="dot warn" style="left: 78%; bottom: 65%;" title="B·02 empty states">B2</div>
+        <div class="dot warn" style="left: 55%; bottom: 78%;" title="C·01 hash diff">C1</div>
+        <div class="dot warn" style="left: 82%; bottom: 75%;" title="B·03 500/14k">B3</div>
+
+        <!-- Polish (bottom-left) -->
+        <div class="dot sugg" style="left: 22%; bottom: 18%;" title="F·03 N64">F3</div>
+        <div class="dot sugg" style="left: 28%; bottom: 12%;" title="G·03 busca">G3</div>
+        <div class="dot sugg" style="left: 18%; bottom: 26%;" title="G·01 view toggle">G1</div>
+        <div class="dot sugg" style="left: 32%; bottom: 28%;" title="E·02 botão azul">E2</div>
+        <div class="dot sugg" style="left: 36%; bottom: 38%;" title="D·03 ZIP">D3</div>
+
+        <!-- Top-left (big effort low impact) -->
+        <div class="dot sugg" style="left: 22%; bottom: 72%;" title="G·02 painel detalhes">G2</div>
+
+        <span class="axis-x">esforço de implementação →</span>
+        <span class="axis-y">impacto no usuário →</span>
+      </div>
+
+      <div class="matrix-legend">
+        <div class="item"><span class="swatch" style="background:var(--crit);"></span> Crítico</div>
+        <div class="item"><span class="swatch" style="background:var(--warn);"></span> Importante</div>
+        <div class="item"><span class="swatch" style="background:var(--sugg);"></span> Sugestão</div>
+        <div class="item" style="margin-left:auto; color:var(--ink-3);">passe o mouse em cada pino pra ver o achado</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ─────────── ROADMAP ─────────── -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <span class="sec-num serif">iv.</span>
+      <h2 class="sec-title serif">Roteiro sugerido.</h2>
+      <span class="sec-kicker">3 sprints curtos</span>
+    </div>
+
+    <div class="roadmap">
+      <div class="road-col">
+        <div class="when">Sprint 1 · ≈ 3 dias</div>
+        <h4>Tirar a poeira</h4>
+        <p style="color:var(--ink-3); font-size:13px; margin: 8px 0 14px;">Vitórias rápidas que limpam a sensação geral do app sem mudar arquitetura.</p>
+        <ul>
+          <li><b>A·01–02</b> Tradução completa, eliminar "GroupBox", corrigir typo.</li>
+          <li><b>A·03</b> Diálogo Sobre em pt-BR.</li>
+          <li><b>D·02</b> Larguras mínimas das colunas + tooltips de cabeçalho.</li>
+          <li><b>F·01</b> Mover Integrações para Opções.</li>
+          <li><b>F·02</b> Pluralização correta.</li>
+          <li><b>F·03</b> "N64" no lugar de "64".</li>
+          <li><b>C·02–03</b> Alerta de cache discreto + botão "Escolher…".</li>
+        </ul>
+      </div>
+      <div class="road-col">
+        <div class="when">Sprint 2 · ≈ 1 semana</div>
+        <h4>Reconstruir os fluxos centrais</h4>
+        <p style="color:var(--ink-3); font-size:13px; margin: 8px 0 14px;">Componentes reutilizáveis que pagam dividendos no resto do produto.</p>
+        <ul>
+          <li><b>B·01–03</b> Componente <code class="t">&lt;EmptyState&gt;</code> aplicado em 5 contextos.</li>
+          <li><b>E·01–02</b> Redesenho do painel de downloads com seções e progresso.</li>
+          <li><b>C·01</b> Hash dialog com diff colorido e "Re-baixar" como ação.</li>
+          <li><b>G·01</b> Ícones claros nos toggles de view + atalhos.</li>
+          <li><b>G·03</b> Busca com lupa, clear, atalho.</li>
+        </ul>
+      </div>
+      <div class="road-col">
+        <div class="when">Sprint 3 · ≈ 2 semanas</div>
+        <h4>Tornar utilizável de verdade</h4>
+        <p style="color:var(--ink-3); font-size:13px; margin: 8px 0 14px;">A grande tacada: transformar 14.769 shortnames em uma biblioteca navegável.</p>
+        <ul>
+          <li><b>D·01</b> Pipeline de metadados: nome amigável + ano + fabricante para 100% do MAME e bibliotecas Nintendo.</li>
+          <li><b>G·02</b> Painel de detalhes (capa, descrição, link archive.org) ao selecionar.</li>
+          <li><b>D·03</b> Reformat da coluna formato; nova coluna útil libertada.</li>
+          <li>Polimentos restantes (E·02, F·03 finais).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ─────────── FOOTER ─────────── -->
+<footer>
+  <div class="sig">Fim do documento.</div>
+  Auditoria UX/UI · Retromanager v0.1 · 17 achados em 15 telas · maio 2026
+</footer>
+
+</body>
+</html>
