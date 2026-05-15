@@ -3,6 +3,7 @@ import os
 from PyQt6.QtCore import *
 
 _FAVORITES_KEY = "_FAVORITES_"
+_HISTORY_KEY   = "_HISTORY_"
 from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
 
@@ -14,10 +15,11 @@ from _debug import *
 from download_queue import DownloadQueue
 from download_panel import DownloadQueuePanel
 from platform_icons import (
-    PlatformItemWidget, FavoritesItemWidget, GameTitleDelegate,
-    FormatBadgeDelegate, fmt_count,
+    PlatformItemWidget, FavoritesItemWidget, HistoryItemWidget,
+    GameTitleDelegate, FormatBadgeDelegate, fmt_count,
 )
 from favorites_manager import FavoritesManager
+from history_manager import HistoryManager
 from error_dialog import DownloadErrorDialog, HashResultDialog
 from game_grid import GameGridWidget
 from options import Options
@@ -41,6 +43,7 @@ class MainWindow(QMainWindow):
         self._retroarch = RetroArchHelper()
         self._lutris = LutrisHelper()
         self._favorites = FavoritesManager()
+        self._history = HistoryManager()
 
         self.optionsDialog = Options(self, settings, self._retroarch, self._lutris)
         self.aboutDialog = About(self)
@@ -455,6 +458,13 @@ class MainWindow(QMainWindow):
         self._fav_widget = FavoritesItemWidget(self._favorites.count())
         self.lw_platforms.setItemWidget(fav_item, self._fav_widget)
 
+        # Recently played pseudo-platform
+        hist_item = QListWidgetItem(self.lw_platforms)
+        hist_item.setData(Qt.ItemDataRole.UserRole, _HISTORY_KEY)
+        hist_item.setSizeHint(QSize(0, 44))
+        self._hist_widget = HistoryItemWidget(self._history.count())
+        self.lw_platforms.setItemWidget(hist_item, self._hist_widget)
+
         available = 0
         total = 0
         for name in self.platforms.getPlatforms():
@@ -532,6 +542,10 @@ class MainWindow(QMainWindow):
 
         if platform_name == _FAVORITES_KEY:
             self._loadFavoritesView()
+            return
+
+        if platform_name == _HISTORY_KEY:
+            self._loadHistoryView()
             return
 
         self.table_placeholder_active = False
@@ -670,6 +684,35 @@ class MainWindow(QMainWindow):
         self._applyTableFilter()
         self.statusBar().showMessage(f"Favoritos: {fmt_count(len(favs))}", 5000)
 
+    def _loadHistoryView(self):
+        self.table_placeholder_active = False
+        self._hide_chunk_banner()
+        self.tw_romsList.setSortingEnabled(False)
+        self.tw_romsList.setRowCount(0)
+
+        recent = self._history.recent(limit=50)
+        downloaded_set = library_service.scan_downloaded(self.settings)
+
+        if not recent:
+            self._showTablePlaceholder(
+                "◷",
+                "Sem histórico ainda",
+                "Inicie um jogo via RetroArch ou Lutris para registrar aqui.",
+            )
+            return
+
+        row_idx = 0
+        for platform, rom_name, _ in recent:
+            rom_data = self.platforms.getRom(platform, rom_name)
+            if not rom_data:
+                continue
+            self._insert_rom_row(row_idx, platform, rom_name, rom_data, downloaded_set)
+            row_idx += 1
+
+        self.tw_romsList.setSortingEnabled(True)
+        self._applyTableFilter()
+        self.statusBar().showMessage(f"Recentes: {fmt_count(len(recent))}", 5000)
+
     def _toggleFavorite(self, rom_name: str | None):
         if not rom_name:
             return
@@ -679,7 +722,7 @@ class MainWindow(QMainWindow):
             return
         it = self.tw_romsList.item(rows[0].row(), 0)
         platform = it.data(Qt.ItemDataRole.UserRole) if it else None
-        if not platform or platform == _FAVORITES_KEY:
+        if not platform or platform in (_FAVORITES_KEY, _HISTORY_KEY):
             return
 
         now_fav = self._favorites.toggle(platform, rom_name)
@@ -1000,7 +1043,7 @@ class MainWindow(QMainWindow):
         if not sel:
             return None
         p = sel[0].data(Qt.ItemDataRole.UserRole)
-        if p == _FAVORITES_KEY:
+        if p in (_FAVORITES_KEY, _HISTORY_KEY):
             rows = self.tw_romsList.selectionModel().selectedRows()
             if rows:
                 it = self.tw_romsList.item(rows[0].row(), 0)
@@ -1024,6 +1067,9 @@ class MainWindow(QMainWindow):
             return
         if not self._retroarch.launch(platform, rom_path):
             QMessageBox.warning(self, "RetroArch", "Não foi possível iniciar o RetroArch.")
+        else:
+            self._history.record(platform, rom_name)
+            self._hist_widget.update_count(self._history.count())
 
     def _addToRetroArchPlaylist(self, rom_name: str | None):
         if not rom_name:
@@ -1067,6 +1113,8 @@ class MainWindow(QMainWindow):
         core = self._retroarch.core_path(platform)
         ra_exe = self._retroarch.exe
         if self._lutris.add_game(platform, rom_name, rom_path, ra_exe, core):
+            self._history.record(platform, rom_name)
+            self._hist_widget.update_count(self._history.count())
             self.optionsDialog.refresh_integrations()
             self._refresh_integrations_statusbar()
             self.statusBar().showMessage(
