@@ -10,9 +10,15 @@ class DownloadErrorDialog(QDialog):
         self.setWindowTitle("Download failed")
         self.setModal(True)
         self.setFixedWidth(440)
+        self.setWindowFlags(
+            Qt.WindowType.Dialog |
+            Qt.WindowType.FramelessWindowHint
+        )
         self.setStyleSheet("""
             QDialog {
                 background: #1a1f2e;
+                border: 1px solid #3d4f6e;
+                border-radius: 10px;
             }
             QLabel { background: transparent; border: none; }
         """)
@@ -43,11 +49,11 @@ class DownloadErrorDialog(QDialog):
         hdr.addWidget(lbl_title, 1)
         lay.addLayout(hdr)
 
-        # ROM name block
+        # ROM name block — uniform monospaced font, no mixed weights
         lbl_rom = QLabel(f"[{platform}]  {rom_name}")
         lbl_rom.setStyleSheet(
-            "background:#252d40;border-radius:6px;padding:9px 12px;"
-            "font-size:12px;color:#a9b4cc;font-family:monospace;"
+            "background:#252d40;border-radius:6px;padding:10px 14px;"
+            "font-size:13px;color:#a9b4cc;font-family:monospace;"
         )
         lbl_rom.setWordWrap(True)
         lay.addWidget(lbl_rom)
@@ -58,8 +64,8 @@ class DownloadErrorDialog(QDialog):
         lbl_reason.setWordWrap(True)
         lay.addWidget(lbl_reason)
 
-        # Hint
-        lbl_hint = QLabel("The item remains in the queue — you can retry it.")
+        # Hint — Portuguese
+        lbl_hint = QLabel("O item permanece na fila — você pode tentar novamente.")
         lbl_hint.setStyleSheet("font-size:11px;color:#6b7a99;")
         lbl_hint.setWordWrap(True)
         lay.addWidget(lbl_hint)
@@ -70,7 +76,7 @@ class DownloadErrorDialog(QDialog):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
-        self.btn_retry = QPushButton("↺  Retry")
+        self.btn_retry = QPushButton("↺  Tentar novamente")
         self.btn_retry.setStyleSheet("""
             QPushButton {
                 background:#4f8ef7;border:none;border-radius:6px;
