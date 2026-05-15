@@ -11,6 +11,7 @@ from download_queue import DownloadQueue
 from download_panel import DownloadQueuePanel
 from platform_icons import PlatformItemWidget, GameTitleDelegate, FormatBadgeDelegate
 from error_dialog import DownloadErrorDialog
+from game_grid import GameGridWidget
 from options import Options
 from about import About
 
@@ -129,6 +130,24 @@ class MainWindow(QMainWindow):
             filter_lay.addWidget(btn)
         self.pb_all.setChecked(True)
 
+        # Separator
+        sep = QLabel("|")
+        sep.setStyleSheet("color:#2e3a52;background:transparent;")
+        filter_lay.addWidget(sep)
+
+        # View toggle: List / Grid
+        self.pb_view_list = QPushButton("≡")
+        self.pb_view_grid = QPushButton("⊞")
+        for btn in (self.pb_view_list, self.pb_view_grid):
+            btn.setCheckable(True)
+            btn.setAutoExclusive(True)
+            btn.setFixedSize(28, 28)
+            btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            filter_lay.addWidget(btn)
+        self.pb_view_list.setChecked(True)
+        self.pb_view_list.setToolTip("List view")
+        self.pb_view_grid.setToolTip("Grid view")
+
         middle_lay.addWidget(filter_bar)
 
         # Table
@@ -168,7 +187,15 @@ class MainWindow(QMainWindow):
         self._format_delegate = FormatBadgeDelegate(self.tw_romsList)
         self.tw_romsList.setItemDelegateForColumn(2, self._format_delegate)
 
-        middle_lay.addWidget(self.tw_romsList)
+        # Grid view
+        self.game_grid = GameGridWidget()
+
+        # Stacked view (List = 0, Grid = 1)
+        self._view_stack = QStackedWidget()
+        self._view_stack.addWidget(self.tw_romsList)
+        self._view_stack.addWidget(self.game_grid)
+        middle_lay.addWidget(self._view_stack)
+
         self._splitter.addWidget(middle)
 
         # ── Right: download panel ────────────────
@@ -229,6 +256,9 @@ class MainWindow(QMainWindow):
         self.tw_romsList.itemDoubleClicked.connect(self._downloadNowContextMenu)
         self.le_filter.textChanged.connect(self._filterTableWidget)
         self.download_panel.downloadRequested.connect(self._launchRomsDownload)
+        self.pb_view_list.toggled.connect(lambda on: self._switch_view("list") if on else None)
+        self.pb_view_grid.toggled.connect(lambda on: self._switch_view("grid") if on else None)
+        self.game_grid.romDoubleClicked.connect(self._downloadRomByName)
         self.pb_eur.toggled.connect(self._filterTableWidget)
         self.pb_usa.toggled.connect(self._filterTableWidget)
         self.pb_jpn.toggled.connect(self._filterTableWidget)
@@ -274,7 +304,9 @@ class MainWindow(QMainWindow):
         self.tw_romsList.setSortingEnabled(False)
         self.tw_romsList.setRowCount(0)
 
+        rom_names = []
         for i, (rom_name, rom_data) in enumerate(self.platforms.getRoms(platform_name)):
+            rom_names.append(rom_name)
             rom_name_item = QTableWidgetItem(rom_name)
             rom_name_item.setToolTip(self._buildRomSummary(platform_name, rom_name, rom_data))
 
@@ -303,8 +335,12 @@ class MainWindow(QMainWindow):
         self.tw_romsList.setSortingEnabled(True)
         self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
         self._applyTableFilter()
+
+        # Populate grid with sorted names
+        self.game_grid.load(platform_name, sorted(rom_names))
+
         self.statusBar().showMessage(
-            f"{platform_name}: {self.platforms.getRomsCount(platform_name):,} items", 5000
+            f"{platform_name}: {len(rom_names):,} items", 5000
         )
 
     def _showEmptyTableMessage(self, message: str):
@@ -332,6 +368,7 @@ class MainWindow(QMainWindow):
             self.tw_romsList.setRowHidden(i, not show)
             if show:
                 visible += 1
+        self.game_grid.apply_filter(keywords, region)
         self.statusBar().showMessage(f"{visible:,} visible item(s)", 3000)
 
     def _selectedRegion(self):
@@ -408,8 +445,24 @@ class MainWindow(QMainWindow):
         menu.exec(QCursor.pos())
 
     # ──────────────────────────────────────────────
+    # View switching
+    # ──────────────────────────────────────────────
+
+    def _switch_view(self, mode: str):
+        self._view_stack.setCurrentIndex(0 if mode == "list" else 1)
+
+    # ──────────────────────────────────────────────
     # Queue management
     # ──────────────────────────────────────────────
+
+    def _downloadRomByName(self, rom_name: str):
+        """Called from grid card double-click."""
+        if not self.lw_platforms.selectedItems():
+            return
+        platform = self.lw_platforms.selectedItems()[0].data(Qt.ItemDataRole.UserRole)
+        self.download_queue.add(platform, [rom_name])
+        self._updateStatusbarQueueText()
+        self._launchRomsDownload()
 
     def _addToQueue(self):
         if not self.lw_platforms.selectedItems():
