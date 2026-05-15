@@ -12,8 +12,13 @@ set -euo pipefail
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$APP_DIR"
 
+PYTHON="${PYTHON:-$APP_DIR/.venv/bin/python3}"
+if [ ! -x "$PYTHON" ]; then
+    PYTHON="python3"
+fi
+
 ARCH="${ARCH:-x86_64}"
-VERSION="$(python -c 'from _constants import VERSION_MAJOR, VERSION_MINOR, VERSION_REVISION; print(f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_REVISION}")')"
+VERSION="$($PYTHON -c 'from _constants import VERSION_MAJOR, VERSION_MINOR, VERSION_REVISION; print(f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_REVISION}")')"
 APPDIR="$APP_DIR/dist/AppDir"
 OUTPUT="retromanager-${VERSION}-${ARCH}.AppImage"
 
@@ -21,7 +26,7 @@ echo "==> Building retromanager ${VERSION} AppImage"
 
 # 1. PyInstaller bundle
 echo "==> Running PyInstaller…"
-python -m PyInstaller packaging/retromanager.spec --distpath dist/pyinstaller --workpath build/pyinstaller --clean --noconfirm
+"$PYTHON" -m PyInstaller packaging/retromanager.spec --distpath dist/pyinstaller --workpath build/pyinstaller --clean --noconfirm
 
 # 2. Assemble AppDir
 echo "==> Assembling AppDir…"

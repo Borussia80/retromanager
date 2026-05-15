@@ -7,8 +7,8 @@ APP_NAME = "retromanager"
 _BASE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 
 VERSION_MAJOR = 2
-VERSION_MINOR = 0
-VERSION_REVISION = "0 RC1"
+VERSION_MINOR = 1
+VERSION_REVISION = 0
 
 RESOURCES_FILE = os.path.join(_BASE, "resources.rcc")
 ICONS_DIR  = os.path.join(_BASE, "resources", "icons")
