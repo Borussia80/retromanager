@@ -53,6 +53,8 @@ class MainWindow(QMainWindow, Ui):
     self.gb_downloads.setLayout(self.download_pane.parent_gb_layout)
 
     # Setup statusbar
+    self.statusbar_catalog = QLabel()
+    self.statusbar.addWidget(self.statusbar_catalog)
     self.statusbar_update = QLabel()
     self.statusbar.addPermanentWidget(self.statusbar_update)
     self.statusbar_queue = QLabel()
@@ -114,15 +116,28 @@ class MainWindow(QMainWindow, Ui):
 
 
   def _loadPlatformsList(self):
+    available_platforms = 0
+    total_roms = 0
+
     for i in range(self.platforms.platformsCount()):
       name = self.platforms.getPlatformName(i)
       rom_count = self.platforms.getRomsCount(name)
-      item = QListWidgetItem(QIcon(':/app.ico'), f"{name} ({rom_count})")
+      total_roms += rom_count
+      item_text = f"{name} ({rom_count})"
+      if rom_count == 0:
+        item_text = f"{name} - Unavailable"
+      else:
+        available_platforms += 1
+
+      item = QListWidgetItem(QIcon(':/app.ico'), item_text)
       item.setData(Qt.ItemDataRole.UserRole, name)
       if rom_count == 0:
         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
-        item.setToolTip("Catalogue unavailable from the current source.")
+        item.setForeground(QBrush(Qt.GlobalColor.gray))
+        item.setToolTip("The current catalogue source did not return files for this platform.")
       self.lw_platforms.addItem(item)
+
+    self.statusbar_catalog.setText(f"{available_platforms}/{self.platforms.platformsCount()} platforms available - {total_roms} items")
 
 
   def _filterTableWidget(self):
@@ -157,9 +172,14 @@ class MainWindow(QMainWindow, Ui):
 
   def _launchRomsDownload(self):
     DebugHelper.print(DebugType.TYPE_INFO, "Download started...")
+    if self.download_queue.getTotalCount() == 0:
+      QMessageBox.information(self, "Download queue", "No items are queued for download.")
+      return
+
     self.gb_downloads.setChecked(True)
     self.download_pane.show()
     total_count = self.download_queue.getTotalCount()
+    completed_count = 0
     self.download_pane.pb_progress.setMaximum(total_count)
     self.download_pane.pb_progress.setValue(0)
     for platform in self.download_queue.queue_dict:
@@ -167,15 +187,28 @@ class MainWindow(QMainWindow, Ui):
         rom_name = self.platforms.getRomName(platform, self.download_queue.queue_dict[platform][0])
         rom_index = self.download_queue.queue_dict[platform][0]
         self.download_pane.l_job.setText(f"[{platform}] {rom_name}")
-        self.download_pane.l_progress.setText(f"{i}/{total_count}")
+        self.download_pane.l_progress.setText(f"{completed_count}/{total_count}")
         self.repaint()
-        RomDownload(self.settings, self.platforms, platform, rom_index)
-        if self.settings.get('unzip'): Unzip(self.settings, f"{rom_name}.{self.platforms.getRom(platform, rom_name)['format']}")
-        self.download_queue.remove(platform, rom_index)
-        self.download_pane.pb_progress.setValue(i+1)
+        try:
+          RomDownload(self.settings, self.platforms, platform, rom_index)
+          if self.settings.get('unzip'): Unzip(self.settings, f"{rom_name}.{self.platforms.getRom(platform, rom_name)['format']}")
+          self.download_queue.remove(platform, rom_index)
+          completed_count += 1
+        except Exception as e:
+          DebugHelper.print(DebugType.TYPE_ERROR, f"Download failed for [{platform}] {rom_name}: {e}", "downloader")
+          QMessageBox.warning(
+            self,
+            "Download failed",
+            f"Could not download:\n\n[{platform}] {rom_name}\n\n{e}\n\nThe item was left in the queue so you can try again."
+          )
+          self.download_pane.l_job.setText("Download failed")
+          self.download_pane.l_progress.setText(f"{completed_count}/{total_count}")
+          return
+        self.download_pane.pb_progress.setValue(completed_count)
         self.repaint()
     self.download_pane.l_job.setText("N/A")
-    self.download_pane.l_progress.setText(f"{i+1}/{total_count}")
+    self.download_pane.l_progress.setText(f"{completed_count}/{total_count}")
+    QMessageBox.information(self, "Downloads complete", f"Downloaded {completed_count} item(s).")
 
 
   def _onListwidgetSelectionChanged(self, item: QListWidgetItem):

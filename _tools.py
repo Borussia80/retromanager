@@ -145,11 +145,15 @@ class RomDownload():
     self.rom_url = f"https://archive.org/download/{platforms.getRom(platform, self.rom_name)['source_id']}/{quote(self.rom_name)}.{self.rom_format}"
     os.makedirs(settings.get('download_path'), exist_ok=True)
     DebugHelper.print(DebugType.TYPE_INFO, f"Downloading [{self.platform_name}] {self.rom_name}", "downloader")
-    with open(os.path.join(settings.get('download_path'), f"{self.rom_name}.{self.rom_format}"), "wb") as of:
-      DebugHelper.print(DebugType.TYPE_DEBUG, f"Downloading from [{self.rom_url}]", "downloader")
-      response = requests.get(self.rom_url, timeout=60)
-      response.raise_for_status()
+
+    output_path = os.path.join(settings.get('download_path'), f"{self.rom_name}.{self.rom_format}")
+    temp_path = f"{output_path}.part"
+    DebugHelper.print(DebugType.TYPE_DEBUG, f"Downloading from [{self.rom_url}]", "downloader")
+    response = requests.get(self.rom_url, timeout=60)
+    response.raise_for_status()
+    with open(temp_path, "wb") as of:
       of.write(response.content)
+    os.replace(temp_path, output_path)
 
 
 
