@@ -176,16 +176,15 @@ class DownloadWorker(QObject):
     import hashlib, os, requests, time, zlib
     from urllib.parse import quote
 
-    rom_data = self.platforms.getRom(platform, rom_name)
-    if not rom_data:
+    rom = self.platforms.getRom(platform, rom_name)
+    if not rom:
       raise ValueError(f"ROM não encontrada no catálogo: {rom_name}")
-    rom_format = rom_data['format']
-    source_id = rom_data.get('source_id', '')
+    rom_format = rom.format
+    source_id = rom.source_id
     import re as _re
     if not _re.fullmatch(r'[\w][\w.\-]*', source_id):
       raise ValueError(f"source_id inválido no catálogo: {source_id!r}")
-    file_path = rom_data.get('file_path')
-    encoded_path = quote(file_path, safe='/') if file_path else f"{quote(rom_name)}.{rom_format}"
+    encoded_path = quote(rom.file_path, safe='/') if rom.file_path else f"{quote(rom_name)}.{rom_format}"
     rom_url = f"https://archive.org/download/{source_id}/{encoded_path}"
     if not rom_url.startswith("https://archive.org/"):
       raise ValueError(f"URL de download fora do domínio permitido: {rom_url}")
@@ -228,7 +227,7 @@ class DownloadWorker(QObject):
         else:
           resp.raise_for_status()
 
-        total_bytes = int(resp.headers.get("content-length") or rom_data.get("size") or 0)
+        total_bytes = int(resp.headers.get("content-length") or rom.size or 0)
         if resume_from > 0:
           total_bytes += resume_from
 
@@ -249,9 +248,9 @@ class DownloadWorker(QObject):
 
       # Validate — hash mismatch: delete corrupt .part
       try:
-        self._validateHash("MD5",   md5.hexdigest(),              rom_data.get("md5", ""))
-        self._validateHash("SHA1",  sha1.hexdigest(),             rom_data.get("sha1", ""))
-        self._validateHash("CRC32", f"{crc32 & 0xffffffff:08x}", rom_data.get("crc32", ""))
+        self._validateHash("MD5",   md5.hexdigest(),              rom.md5)
+        self._validateHash("SHA1",  sha1.hexdigest(),             rom.sha1)
+        self._validateHash("CRC32", f"{crc32 & 0xffffffff:08x}", rom.crc32)
       except ValueError:
         if os.path.exists(temp_path):
           os.remove(temp_path)

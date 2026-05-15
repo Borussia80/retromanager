@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QCursor, QDesktopServices
 
+from models import RomEntry
+
 
 class RomDetailPanel(QWidget):
     downloadRequested = pyqtSignal(str, str)   # platform, rom_name
@@ -161,18 +163,18 @@ class RomDetailPanel(QWidget):
         return val
 
     def show_rom(self, platform: str, rom_name: str, display_name: str,
-                 rom_data: dict, is_fav: bool):
+                 rom_data: RomEntry, is_fav: bool):
         from _tools import Tools
         self._platform = platform
         self._rom_name = rom_name
 
         self._lbl_title.setText(display_name)
         self._lbl_platform.setText(platform)
-        self._lbl_size.setText(Tools.convertSizeToReadable(rom_data.get("size", 0)))
-        self._lbl_format.setText(rom_data.get("format", "—").upper())
-        self._lbl_md5.setText(rom_data.get("md5", "—"))
-        self._lbl_crc32.setText(rom_data.get("crc32", "—").upper())
-        self._lbl_sha1.setText(rom_data.get("sha1", "—"))
+        self._lbl_size.setText(Tools.convertSizeToReadable(rom_data.size))
+        self._lbl_format.setText((rom_data.format or "—").upper())
+        self._lbl_md5.setText(rom_data.md5 or "—")
+        self._lbl_crc32.setText((rom_data.crc32 or "—").upper())
+        self._lbl_sha1.setText(rom_data.sha1 or "—")
 
         self._btn_fav.blockSignals(True)
         self._btn_fav.setChecked(is_fav)

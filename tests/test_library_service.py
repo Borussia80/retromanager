@@ -5,6 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import library_service
+from models import RomEntry
 
 
 class _FakeSettings:
@@ -136,13 +137,7 @@ class TestRomMatchesFilters:
 # ─── build_rom_summary ─────────────────────────────────────────────────────────
 
 class TestBuildRomSummary:
-    _rom_data = {
-        "size": 1048576,
-        "format": "zip",
-        "md5": "abc",
-        "crc32": "def",
-        "sha1": "ghi",
-    }
+    _rom_data = RomEntry(size=1048576, format="zip", md5="abc", crc32="def", sha1="ghi")
 
     def test_contains_rom_name(self):
         result = library_service.build_rom_summary("NES", "Super Mario (USA)", self._rom_data)
@@ -170,5 +165,5 @@ class TestBuildRomSummary:
         assert "1048576" in result
 
     def test_missing_size_key(self):
-        result = library_service.build_rom_summary("NES", "Game", {})
+        result = library_service.build_rom_summary("NES", "Game", RomEntry())
         assert "0" in result

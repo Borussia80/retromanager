@@ -7,6 +7,8 @@ No Qt dependency — all functions are plain Python and fully unit-testable.
 import os
 import re
 
+from models import RomEntry
+
 
 def scan_downloaded(settings, platform: str | None = None) -> set[str]:
     """Return stems of ROM files present in the download dir and import paths."""
@@ -76,17 +78,16 @@ def rom_matches_filters(rom_name: str, keywords: list[str], region: str | None,
     return all(kw in target or (alt and kw in alt) for kw in keywords)
 
 
-def build_rom_summary(platform_name: str, rom_name: str, rom_data: dict,
+def build_rom_summary(platform_name: str, rom_name: str, rom_data: RomEntry,
                       size_formatter=None) -> str:
     """Build a human-readable tooltip / detail string for a ROM."""
     tags = re.findall(r'\(([^)]+)\)', rom_name)
     tags_text = ", ".join(tags) if tags else "—"
-    size = rom_data.get('size', 0)
-    size_str = size_formatter(size) if size_formatter else str(size)
+    size_str = size_formatter(rom_data.size) if size_formatter else str(rom_data.size)
     return (
         f"{rom_name}\n"
         f"Plataforma: {platform_name}\n"
         f"Tags: {tags_text}\n"
         f"Tamanho: {size_str}\n"
-        f"Formato: {rom_data.get('format', '—')}"
+        f"Formato: {rom_data.format or '—'}"
     )

@@ -574,17 +574,17 @@ class MainWindow(QMainWindow):
                               self._favorites.is_favorite(platform, rom_name))
         rom_name_item.setData(Qt.ItemDataRole.UserRole + 3, rom_name)  # always shortname
 
-        size_str = Tools.convertSizeToReadable(rom_data['size'])
-        fmt_str = rom_data['format'].upper()
+        size_str = Tools.convertSizeToReadable(rom_data.size)
+        fmt_str = rom_data.format.upper()
         rom_size_item = QTableWidgetItem(f"{size_str} · {fmt_str}")
         rom_size_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
         rom_format_item = QTableWidgetItem(fmt_str)  # hidden column 2 — kept for data access
         rom_format_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        rom_md5_item   = QTableWidgetItem(rom_data['md5'])
-        rom_crc32_item = QTableWidgetItem(rom_data['crc32'].upper())
-        rom_sha1_item  = QTableWidgetItem(rom_data['sha1'])
+        rom_md5_item   = QTableWidgetItem(rom_data.md5)
+        rom_crc32_item = QTableWidgetItem(rom_data.crc32.upper())
+        rom_sha1_item  = QTableWidgetItem(rom_data.sha1)
         for it in (rom_md5_item, rom_crc32_item, rom_sha1_item):
             it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             it.setForeground(QColor("#6b7a99"))
@@ -822,11 +822,11 @@ class MainWindow(QMainWindow):
         details = (
             f"<b>{rom_name}</b><br><br>"
             f"<b>Plataforma:</b> {platform}<br>"
-            f"<b>Tamanho:</b> {Tools.convertSizeToReadable(rom_data['size'])}<br>"
-            f"<b>Formato:</b> {rom_data['format']}<br><br>"
-            f"<b>MD5:</b> {rom_data['md5']}<br>"
-            f"<b>CRC32:</b> {rom_data['crc32'].upper()}<br>"
-            f"<b>SHA1:</b> {rom_data['sha1']}"
+            f"<b>Tamanho:</b> {Tools.convertSizeToReadable(rom_data.size)}<br>"
+            f"<b>Formato:</b> {rom_data.format}<br><br>"
+            f"<b>MD5:</b> {rom_data.md5}<br>"
+            f"<b>CRC32:</b> {rom_data.crc32.upper()}<br>"
+            f"<b>SHA1:</b> {rom_data.sha1}"
         )
         QMessageBox.information(self, "Detalhes do jogo", details)
 
@@ -1083,9 +1083,9 @@ class MainWindow(QMainWindow):
             return
         rom_data = self.platforms.getRom(platform, rom_name)
         expected = {
-            "md5":   rom_data.get("md5", ""),
-            "sha1":  rom_data.get("sha1", ""),
-            "crc32": rom_data.get("crc32", ""),
+            "md5":   rom_data.md5 if rom_data else "",
+            "sha1":  rom_data.sha1 if rom_data else "",
+            "crc32": rom_data.crc32 if rom_data else "",
         }
         self.statusBar().showMessage(f"Verificando integridade de '{rom_name}'…")
         worker = HashCheckWorker(rom_path, expected)

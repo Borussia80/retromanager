@@ -3,6 +3,7 @@ import json, os, pickle
 # Helpers
 from _constants import *
 from _debug import *
+from models import RomEntry
 
 
 class PlatformsHelper():
@@ -62,9 +63,9 @@ class PlatformsHelper():
     return list(self._platformsCache[platform_name].keys())[index]
 
 
-  def getRom(self, platform_name: str, rom_name: str) -> dict | None:
+  def getRom(self, platform_name: str, rom_name: str) -> RomEntry | None:
     try:
-      return self._platformsCache[platform_name][rom_name]
+      return RomEntry.from_dict(self._platformsCache[platform_name][rom_name])
     except KeyError:
       return None
 
