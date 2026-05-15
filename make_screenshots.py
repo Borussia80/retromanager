@@ -11,7 +11,7 @@ from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtWidgets import QApplication, QListWidgetItem
 from PyQt6.QtCore import QResource
 
-from _constants import ICON_FILE, RESOURCES_FILE
+from _constants import ICONS_DIR, RESOURCES_FILE
 from _settings import SettingsHelper
 from _updater import UpdaterHelper
 from _platforms import PlatformsHelper
@@ -32,7 +32,10 @@ def grab(widget, name):
 def run():
     app = QApplication(sys.argv)
     app.setStyleSheet(DARK_THEME)
-    app.setWindowIcon(QIcon(ICON_FILE))
+    _icon = QIcon()
+    for _size in (16, 32, 48, 64, 128, 256, 512):
+        _icon.addPixmap(QPixmap(f"{ICONS_DIR}/icon_{_size}.png"))
+    app.setWindowIcon(_icon)
     QResource.registerResource(RESOURCES_FILE)
 
     settings  = SettingsHelper()
