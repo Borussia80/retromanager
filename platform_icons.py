@@ -2,7 +2,7 @@ import re
 from PyQt6.QtCore import Qt, QSize, QRect
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QBrush, QPainter
 from PyQt6.QtWidgets import (
-    QWidget, QHBoxLayout, QVBoxLayout, QLabel,
+    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QSizePolicy,
     QStyledItemDelegate, QStyle, QApplication,
 )
 
@@ -51,6 +51,15 @@ def _strip_manufacturer(name: str) -> str:
     return name.split(" - ", 1)[-1] if " - " in name else name
 
 
+def fmt_count(n: int) -> str:
+    """Human-readable count for status bar and tooltips (not for sidebar items)."""
+    if n == 0:
+        return "vazio"
+    if n == 1:
+        return "1 item"
+    return f"{n:,} itens".replace(",", ".")
+
+
 def parse_title_tags(title: str) -> tuple[str, list[str]]:
     """'Super Mario World (USA) (Beta)' → ('Super Mario World', ['USA', 'Beta'])"""
     tags = re.findall(r'\(([^)]+)\)', title)
@@ -81,9 +90,15 @@ class PlatformIconWidget(QWidget):
 
 
 class PlatformItemWidget(QWidget):
+    _STYLE_COUNT_IDLE = "font-size:10px;color:#6b7a99;background:transparent;border:none;"
+    _STYLE_COUNT_SEL  = "font-size:10px;color:rgba(232,236,245,180);background:transparent;border:none;"
+    _STYLE_COUNT_OFF  = "font-size:10px;color:#3d4f6e;background:transparent;border:none;"
+
     def __init__(self, name: str, count: int, parent=None):
         super().__init__(parent)
         style = PLATFORM_STYLE.get(name, _default_style(name))
+        self._full_name = _strip_manufacturer(name)
+        self._available = count > 0
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 6, 10, 6)
@@ -92,37 +107,54 @@ class PlatformItemWidget(QWidget):
         icon = PlatformIconWidget(style["abbr"], style["color"])
         layout.addWidget(icon)
 
-        text_col = QVBoxLayout()
-        text_col.setSpacing(1)
+        self._lbl_name = QLabel(self._full_name)
+        self._lbl_name.setTextFormat(Qt.TextFormat.PlainText)
+        self._lbl_name.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self._lbl_name.setMinimumWidth(0)
+        self._lbl_name.setToolTip(self._full_name)
 
-        lbl_name = QLabel(_strip_manufacturer(name))
-        lbl_name.setStyleSheet(
-            "font-size:12px;font-weight:500;color:#e8ecf5;"
-            "background:transparent;border:none;"
-        )
-
-        if count > 0:
-            lbl_count = QLabel(f"{count:,} títulos")
-            lbl_count.setStyleSheet(
-                "font-size:10px;color:#6b7a99;background:transparent;border:none;"
+        if self._available:
+            self._lbl_name.setStyleSheet(
+                "font-size:12px;font-weight:500;color:#e8ecf5;"
+                "background:transparent;border:none;"
             )
+            # TODO(audit): F·02b — separar estados "indisponível" e "vazio".
+            # #3d4f6e (cor "Indisponível") provavelmente falha WCAG AA — reavaliar.
+            count_txt = f"{count:,}".replace(",", ".")
+            count_style = self._STYLE_COUNT_IDLE
         else:
-            lbl_count = QLabel("Indisponível")
-            lbl_count.setStyleSheet(
-                "font-size:10px;color:#3d4f6e;background:transparent;border:none;"
-            )
-
-        text_col.addWidget(lbl_name)
-        text_col.addWidget(lbl_count)
-        layout.addLayout(text_col)
-        layout.addStretch()
-
-        if count == 0:
-            self.setEnabled(False)
-            lbl_name.setStyleSheet(
+            self._lbl_name.setStyleSheet(
                 "font-size:12px;font-weight:500;color:#3d4f6e;"
                 "background:transparent;border:none;"
             )
+            count_txt = "Indisponível"
+            count_style = self._STYLE_COUNT_OFF
+            self.setEnabled(False)
+
+        self._lbl_count = QLabel(count_txt)
+        self._lbl_count.setStyleSheet(count_style)
+
+        layout.addWidget(self._lbl_name)
+        layout.addWidget(self._lbl_count)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_elided_name()
+
+    def _update_elided_name(self):
+        fm = self._lbl_name.fontMetrics()
+        count_w = self._lbl_count.sizeHint().width()
+        # icon(32) + left-margin(10) + spacing(10) + [name] + spacing(10) + count + right-margin(10)
+        available = self.width() - 72 - count_w
+        elided = fm.elidedText(self._full_name, Qt.TextElideMode.ElideRight, max(available, 20))
+        self._lbl_name.setText(elided)
+
+    def set_selected(self, selected: bool):
+        if not self._available:
+            return
+        self._lbl_count.setStyleSheet(
+            self._STYLE_COUNT_SEL if selected else self._STYLE_COUNT_IDLE
+        )
 
 
 class GameTitleDelegate(QStyledItemDelegate):
@@ -222,41 +254,42 @@ class GameTitleDelegate(QStyledItemDelegate):
 
 
 class FavoritesItemWidget(QWidget):
+    _STYLE_COUNT_IDLE = "font-size:10px;color:#6b7a99;background:transparent;border:none;"
+    _STYLE_COUNT_SEL  = "font-size:10px;color:rgba(232,236,245,180);background:transparent;border:none;"
+
     def __init__(self, count: int, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 6, 10, 6)
         layout.setSpacing(10)
 
-        # Star icon badge (same size as platform icons)
         icon = PlatformIconWidget("★", "#b8860b")
         layout.addWidget(icon)
 
-        text_col = QVBoxLayout()
-        text_col.setSpacing(1)
-
         lbl_name = QLabel("Favoritos")
+        lbl_name.setTextFormat(Qt.TextFormat.PlainText)
         lbl_name.setStyleSheet(
             "font-size:12px;font-weight:500;color:#e8ecf5;"
             "background:transparent;border:none;"
         )
 
-        self._lbl_count = QLabel(self._count_text(count))
-        self._lbl_count.setStyleSheet(
-            "font-size:10px;color:#6b7a99;background:transparent;border:none;"
-        )
+        self._lbl_count = QLabel(self._fmt_num(count))
+        self._lbl_count.setStyleSheet(self._STYLE_COUNT_IDLE)
 
-        text_col.addWidget(lbl_name)
-        text_col.addWidget(self._lbl_count)
-        layout.addLayout(text_col)
-        layout.addStretch()
+        layout.addWidget(lbl_name, 1)
+        layout.addWidget(self._lbl_count)
 
     def update_count(self, count: int):
-        self._lbl_count.setText(self._count_text(count))
+        self._lbl_count.setText(self._fmt_num(count))
+
+    def set_selected(self, selected: bool):
+        self._lbl_count.setStyleSheet(
+            self._STYLE_COUNT_SEL if selected else self._STYLE_COUNT_IDLE
+        )
 
     @staticmethod
-    def _count_text(count: int) -> str:
-        return f"{count:,} títulos" if count else "Nenhum ainda"
+    def _fmt_num(n: int) -> str:
+        return f"{n:,}".replace(",", ".") if n else ""
 
 
 class FormatBadgeDelegate(QStyledItemDelegate):

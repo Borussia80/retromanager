@@ -13,7 +13,10 @@ from _tools import Tools, DownloadWorker, HashCheckWorker
 from _debug import *
 from download_queue import DownloadQueue
 from download_panel import DownloadQueuePanel
-from platform_icons import PlatformItemWidget, FavoritesItemWidget, GameTitleDelegate, FormatBadgeDelegate
+from platform_icons import (
+    PlatformItemWidget, FavoritesItemWidget, GameTitleDelegate,
+    FormatBadgeDelegate, fmt_count,
+)
 from favorites_manager import FavoritesManager
 from error_dialog import DownloadErrorDialog, HashResultDialog
 from game_grid import GameGridWidget
@@ -280,6 +283,7 @@ class MainWindow(QMainWindow):
 
     def _connect_signals(self):
         self.lw_platforms.itemClicked.connect(self._onListwidgetSelectionChanged)
+        self.lw_platforms.currentItemChanged.connect(self._onPlatformCurrentItemChanged)
         self.tw_romsList.customContextMenuRequested.connect(self._onRomslistRightClick)
         self.tw_romsList.itemDoubleClicked.connect(self._downloadNowContextMenu)
         self.le_filter.textChanged.connect(self._filterTableWidget)
@@ -302,7 +306,7 @@ class MainWindow(QMainWindow):
         # Favorites pseudo-platform at the top
         fav_item = QListWidgetItem(self.lw_platforms)
         fav_item.setData(Qt.ItemDataRole.UserRole, _FAVORITES_KEY)
-        fav_item.setSizeHint(QSize(0, 52))
+        fav_item.setSizeHint(QSize(0, 44))
         self._fav_widget = FavoritesItemWidget(self._favorites.count())
         self.lw_platforms.setItemWidget(fav_item, self._fav_widget)
 
@@ -315,14 +319,14 @@ class MainWindow(QMainWindow):
                 available += 1
             item = QListWidgetItem(self.lw_platforms)
             item.setData(Qt.ItemDataRole.UserRole, name)
-            item.setSizeHint(QSize(0, 52))
+            item.setSizeHint(QSize(0, 44))
             if count == 0:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             widget = PlatformItemWidget(name, count)
             self.lw_platforms.setItemWidget(item, widget)
 
         self.statusbar_catalog.setText(
-            f"{available}/{self.platforms.platformsCount()} plataformas  ·  {total:,} itens"
+            f"{available}/{self.platforms.platformsCount()} plataformas  ·  {fmt_count(total)}"
         )
 
     # ──────────────────────────────────────────────
@@ -385,8 +389,15 @@ class MainWindow(QMainWindow):
         self.game_grid.load(platform_name, sorted(rom_names), downloaded_set)
 
         self.statusBar().showMessage(
-            f"{platform_name}: {len(rom_names):,} itens", 5000
+            f"{platform_name}: {fmt_count(len(rom_names))}", 5000
         )
+
+    def _onPlatformCurrentItemChanged(self, current, previous):
+        for item, selected in ((previous, False), (current, True)):
+            if item:
+                w = self.lw_platforms.itemWidget(item)
+                if w and hasattr(w, 'set_selected'):
+                    w.set_selected(selected)
 
     def _loadFavoritesView(self):
         self.table_placeholder_active = False
@@ -435,7 +446,7 @@ class MainWindow(QMainWindow):
         self.tw_romsList.setSortingEnabled(True)
         self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
         self._applyTableFilter()
-        self.statusBar().showMessage(f"Favoritos: {len(favs):,} itens", 5000)
+        self.statusBar().showMessage(f"Favoritos: {fmt_count(len(favs))}", 5000)
 
     def _toggleFavorite(self, rom_name: str | None):
         if not rom_name:
@@ -518,7 +529,7 @@ class MainWindow(QMainWindow):
             if show:
                 visible += 1
         self.game_grid.apply_filter(keywords, region)
-        self.statusBar().showMessage(f"{visible:,} ítens visíveis", 3000)
+        self.statusBar().showMessage(f"{fmt_count(visible)} visíveis", 3000)
 
     def _selectedRegion(self):
         if self.pb_eur.isChecked(): return "Europe"
@@ -901,7 +912,7 @@ class MainWindow(QMainWindow):
         ]
         added = self.download_queue.add(platform, selected_names)
         self._updateStatusbarQueueText()
-        self.statusBar().showMessage(f"{added} ítens adicionados à fila", 3000)
+        self.statusBar().showMessage(f"{fmt_count(added)} adicionados à fila", 3000)
 
     def _downloadNowContextMenu(self):
         self._addToQueue()
@@ -911,7 +922,7 @@ class MainWindow(QMainWindow):
         count = self.download_queue.getTotalCount()
         is_running = bool(self.download_thread and self.download_thread.isRunning())
         if count > 0:
-            self.statusbar_queue.setText(f"<a href='#'>{count} ítens na fila</a>")
+            self.statusbar_queue.setText(f"<a href='#'>{fmt_count(count)} na fila</a>")
         else:
             self.statusbar_queue.setText("")
         self.download_panel.set_downloading(is_running)
@@ -1001,7 +1012,7 @@ class MainWindow(QMainWindow):
         self._updateStatusbarQueueText()
         if not self.download_failed:
             self.statusBar().showMessage(
-                f"{self.download_completed_count} ítens baixados.", 5000
+                f"{fmt_count(self.download_completed_count)} baixados.", 5000
             )
 
     def _cancelDownload(self):
