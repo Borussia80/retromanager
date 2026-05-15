@@ -46,6 +46,11 @@ class DownloadItemWidget(QWidget):
         lay.addWidget(self.lbl_meta)
 
     def set_downloading(self):
+        self.bar.setValue(0)
+        self.bar.setStyleSheet("""
+            QProgressBar { background:#252d40; border-radius:2px; border:none; }
+            QProgressBar::chunk { background:#4f8ef7; border-radius:2px; }
+        """)
         self.lbl_meta.setText("Iniciando…")
         self.lbl_meta.setStyleSheet("font-size:10px;color:#4f8ef7;border:none;")
 

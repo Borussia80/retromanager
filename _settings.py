@@ -14,6 +14,8 @@ class SettingsHelper():
       "cache_expiration": 30,
       "check_updates": False,
       "download_path": DEFAULT_DOWNLOAD_DIR,
+      "import_paths": [],
+      "organize_by_platform": True,
       "unzip": True,
     }
     os.makedirs(CONFIG_DIR, exist_ok=True)

@@ -9,13 +9,13 @@ from PyQt6.QtWidgets import *
 from _settings import SettingsHelper
 from _updater import UpdaterHelper
 from _platforms import PlatformsHelper
-from _tools import Tools, DownloadWorker
+from _tools import Tools, DownloadWorker, HashCheckWorker
 from _debug import *
 from download_queue import DownloadQueue
 from download_panel import DownloadQueuePanel
 from platform_icons import PlatformItemWidget, FavoritesItemWidget, GameTitleDelegate, FormatBadgeDelegate
 from favorites_manager import FavoritesManager
-from error_dialog import DownloadErrorDialog
+from error_dialog import DownloadErrorDialog, HashResultDialog
 from game_grid import GameGridWidget
 from options import Options
 from about import About
@@ -237,6 +237,13 @@ class MainWindow(QMainWindow):
         act_settings.triggered.connect(self.optionsDialog.show)
         menu_options.addAction(act_settings)
         menu_options.addSeparator()
+        act_import = QAction("Importar pasta de ROMs…", self)
+        act_import.triggered.connect(self._importRomFolder)
+        menu_options.addAction(act_import)
+        act_manage_imports = QAction("Gerenciar importações…", self)
+        act_manage_imports.triggered.connect(self._manageImports)
+        menu_options.addAction(act_manage_imports)
+        menu_options.addSeparator()
         act_exit = QAction("Sair", self)
         act_exit.triggered.connect(self.close)
         menu_options.addAction(act_exit)
@@ -332,7 +339,7 @@ class MainWindow(QMainWindow):
         self.tw_romsList.setSortingEnabled(False)
         self.tw_romsList.setRowCount(0)
 
-        downloaded_set = self._scan_downloaded()
+        downloaded_set = self._scan_downloaded(platform_name)
         rom_names = []
         for i, (rom_name, rom_data) in enumerate(self.platforms.getRoms(platform_name)):
             rom_names.append(rom_name)
@@ -459,13 +466,26 @@ class MainWindow(QMainWindow):
             self.download_panel.add_item(rom_name)
         self._updateStatusbarQueueText()
 
-    def _scan_downloaded(self) -> set[str]:
-        """Return a set of ROM stems (filename without extension) already on disk."""
-        path = self.settings.get('download_path')
-        try:
-            return {os.path.splitext(f)[0] for f in os.listdir(path)}
-        except OSError:
-            return set()
+    def _scan_downloaded(self, platform: str | None = None) -> set[str]:
+        """Return stems of files present in the download dir, platform subdir, and import paths."""
+        base = self.settings.get('download_path')
+        dirs_to_scan = [base]
+        if platform:
+            dirs_to_scan.append(os.path.join(base, platform))
+        for imp in self.settings.get('import_paths'):
+            dirs_to_scan.append(imp)
+            if platform:
+                dirs_to_scan.append(os.path.join(imp, platform))
+
+        stems: set[str] = set()
+        for d in dirs_to_scan:
+            try:
+                for f in os.listdir(d):
+                    if os.path.isfile(os.path.join(d, f)):
+                        stems.add(os.path.splitext(f)[0])
+            except OSError:
+                pass
+        return stems
 
     def _showEmptyTableMessage(self, message: str):
         self.table_placeholder_active = True
@@ -589,11 +609,18 @@ class MainWindow(QMainWindow):
         act_fav.setEnabled(is_single and bool(rom_name))
         act_fav.triggered.connect(lambda: self._toggleFavorite(rom_name))
 
+        act_integrity = QAction("Verificar integridade", self)
+        act_integrity.setEnabled(is_single and is_downloaded)
+        if not is_downloaded:
+            act_integrity.setToolTip("ROM ainda não baixada")
+        act_integrity.triggered.connect(lambda: self._checkRomIntegrity(rom_name))
+
         menu.addAction(act_queue)
         menu.addAction(act_now)
         menu.addSeparator()
         menu.addAction(act_fav)
         menu.addAction(act_details)
+        menu.addAction(act_integrity)
 
         # ── RetroArch / Lutris ──────────────────────
         menu.addSeparator()
@@ -643,24 +670,35 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────────────
 
     def _find_rom_file(self, rom_name: str) -> str | None:
-        """Return the path of the downloaded ROM file whose stem matches rom_name."""
-        path = self.settings.get('download_path')
-        try:
-            entries = os.listdir(path)
-        except OSError:
-            return None
-        # Prefer non-archive files (extracted ROMs)
-        for f in entries:
-            stem, ext = os.path.splitext(f)
-            if stem == rom_name and ext.lower() not in ('.zip', '.7z', '.part'):
-                full = os.path.join(path, f)
-                if os.path.isfile(full):
-                    return full
-        # Fall back to archive file
-        for f in entries:
-            stem, ext = os.path.splitext(f)
-            if stem == rom_name and ext.lower() in ('.zip', '.7z'):
-                return os.path.join(path, f)
+        """Find a downloaded ROM file by stem, checking platform subdir, base dir, and import paths."""
+        base = self.settings.get('download_path')
+        platform = self._current_platform()
+        dirs = []
+        if platform:
+            dirs.append(os.path.join(base, platform))
+        dirs.append(base)
+        for imp in self.settings.get('import_paths'):
+            if platform:
+                dirs.append(os.path.join(imp, platform))
+            dirs.append(imp)
+
+        for d in dirs:
+            try:
+                entries = os.listdir(d)
+            except OSError:
+                continue
+            for f in entries:
+                stem, ext = os.path.splitext(f)
+                if stem == rom_name and ext.lower() not in ('.zip', '.7z', '.part'):
+                    full = os.path.join(d, f)
+                    if os.path.isfile(full):
+                        return full
+            for f in entries:
+                stem, ext = os.path.splitext(f)
+                if stem == rom_name and ext.lower() in ('.zip', '.7z'):
+                    full = os.path.join(d, f)
+                    if os.path.isfile(full):
+                        return full
         return None
 
     def _current_platform(self) -> str | None:
@@ -744,6 +782,95 @@ class MainWindow(QMainWindow):
                 "Não foi possível abrir o Lutris.\n"
                 "Verifique se o Lutris está instalado."
             )
+
+    # ──────────────────────────────────────────────
+    # Hash verification
+    # ──────────────────────────────────────────────
+
+    def _checkRomIntegrity(self, rom_name: str | None):
+        if not rom_name:
+            return
+        platform = self._current_platform()
+        if not platform:
+            return
+        rom_path = self._find_rom_file(rom_name)
+        if not rom_path:
+            QMessageBox.warning(
+                self, "Arquivo não encontrado",
+                f"Nenhum arquivo encontrado para:\n{rom_name}"
+            )
+            return
+        rom_data = self.platforms.getRom(platform, rom_name)
+        expected = {
+            "md5":   rom_data.get("md5", ""),
+            "sha1":  rom_data.get("sha1", ""),
+            "crc32": rom_data.get("crc32", ""),
+        }
+        self.statusBar().showMessage(f"Verificando integridade de '{rom_name}'…")
+        worker = HashCheckWorker(rom_path, expected)
+        worker.signals.done.connect(
+            lambda results: self._onHashCheckDone(rom_path, results)
+        )
+        worker.signals.error.connect(
+            lambda err: QMessageBox.warning(self, "Erro", f"Não foi possível ler o arquivo:\n{err}")
+        )
+        QThreadPool.globalInstance().start(worker)
+
+    def _onHashCheckDone(self, file_path: str, results: dict):
+        self.statusBar().clearMessage()
+        dlg = HashResultDialog(file_path, results, parent=self)
+        dlg.exec()
+
+    # ──────────────────────────────────────────────
+    # Import library
+    # ──────────────────────────────────────────────
+
+    def _importRomFolder(self):
+        folder = QFileDialog.getExistingDirectory(
+            self, "Selecionar pasta de ROMs para importar",
+            os.path.expanduser("~")
+        )
+        if not folder:
+            return
+        paths = self.settings.get('import_paths')
+        if folder not in paths:
+            paths.append(folder)
+            self.settings.update(['import_paths', paths])
+            self.settings.write()
+        try:
+            count = sum(
+                1 for f in os.listdir(folder)
+                if os.path.isfile(os.path.join(folder, f))
+            )
+        except OSError:
+            count = 0
+        self.statusBar().showMessage(
+            f"Pasta importada: {folder}  ({count:,} arquivos detectados).", 6000
+        )
+        # Refresh current view to show newly detected ROMs
+        sel = self.lw_platforms.selectedItems()
+        if sel:
+            self._onListwidgetSelectionChanged(sel[0])
+
+    def _manageImports(self):
+        paths = self.settings.get('import_paths')
+        if not paths:
+            QMessageBox.information(
+                self, "Importações",
+                "Nenhuma pasta importada.\n\n"
+                "Use 'Importar pasta de ROMs…' no menu Opções para adicionar."
+            )
+            return
+        listed = "\n".join(f"• {p}" for p in paths)
+        ans = QMessageBox.question(
+            self, "Gerenciar importações",
+            f"Pastas importadas:\n\n{listed}\n\nRemover todas?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if ans == QMessageBox.StandardButton.Yes:
+            self.settings.update(['import_paths', []])
+            self.settings.write()
+            self.statusBar().showMessage("Importações removidas.", 4000)
 
     # ──────────────────────────────────────────────
     # Queue management
@@ -841,6 +968,13 @@ class MainWindow(QMainWindow):
         self.download_queue.remove(platform, rom_name)
         self.download_panel.complete_item(rom_name)
         self._updateStatusbarQueueText()
+        # Update ✓ badge in the table immediately without re-selecting the platform
+        for i in range(self.tw_romsList.rowCount()):
+            it = self.tw_romsList.item(i, 0)
+            if it and it.text() == rom_name:
+                it.setData(Qt.ItemDataRole.UserRole + 1, True)
+                self.tw_romsList.viewport().update()
+                break
 
     def _onDownloadFailedItem(self, platform: str, rom_name: str, error: str):
         self.download_failed = True

@@ -40,17 +40,17 @@ retromanager is being shaped into a retro library manager: simple browsing, reli
 - [x] Add cancel support.
 - [x] Sort game list by column.
 - [x] Persist download queue across app restarts (queue.json in cache dir).
-- [ ] Add retry support for failed downloads.
-- [ ] Resume interrupted downloads (.part files).
+- [x] Retry failed downloads via error dialog (item stays in queue, panel resets visually).
+- [x] Resume interrupted downloads: .part file kept on network/cancel errors, Range header used on next attempt.
 
 ## Phase 3 - Local Library
 
 - [x] Detect already downloaded ROMs and highlight them in list and grid.
 - [x] Favorites / wishlist: star any ROM from the context menu, persisted to disk.
 - [x] Dedicated "Favoritos" view at the top of the platform sidebar.
-- [ ] Organize files by platform folder.
-- [ ] Import existing folders into the library.
-- [ ] Re-check hashes on demand.
+- [x] Organize downloads by platform subfolder (organize_by_platform setting, default on).
+- [x] Import existing ROM folders: Opções > Importar pasta de ROMs, scanned alongside download dir.
+- [x] Re-check hashes on demand: context menu "Verificar integridade" runs MD5/SHA1/CRC32 in background.
 
 ## Phase 4 - RetroArch
 

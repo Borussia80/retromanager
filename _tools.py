@@ -164,32 +164,54 @@ class DownloadWorker(QObject):
     rom_data = self.platforms.getRom(platform, rom_name)
     rom_format = rom_data['format']
     file_path = rom_data.get('file_path')
-    if file_path:
-      encoded_path = quote(file_path, safe='/')
-    else:
-      encoded_path = f"{quote(rom_name)}.{rom_format}"
+    encoded_path = quote(file_path, safe='/') if file_path else f"{quote(rom_name)}.{rom_format}"
     rom_url = f"https://archive.org/download/{rom_data['source_id']}/{encoded_path}"
-    output_path = os.path.join(self.settings.get('download_path'), f"{rom_name}.{rom_format}")
-    temp_path = f"{output_path}.part"
 
-    os.makedirs(self.settings.get('download_path'), exist_ok=True)
-    if os.path.exists(temp_path):
-      os.remove(temp_path)
+    base_dir = self.settings.get('download_path')
+    output_dir = os.path.join(base_dir, platform) if self.settings.get('organize_by_platform') else base_dir
+    os.makedirs(output_dir, exist_ok=True)
 
+    output_path = os.path.join(output_dir, f"{rom_name}.{rom_format}")
+    temp_path   = f"{output_path}.part"
+
+    # Resume from partial file if present
+    resume_from = os.path.getsize(temp_path) if os.path.exists(temp_path) else 0
     md5 = hashlib.md5()
     sha1 = hashlib.sha1()
     crc32 = 0
-    bytes_done = 0
+    bytes_done = resume_from
     started_at = time.monotonic()
+
+    if resume_from > 0:
+      DebugHelper.print(DebugType.TYPE_INFO, f"Resuming [{platform}] {rom_name} from {resume_from}B", "downloader")
+      with open(temp_path, 'rb') as f:
+        for chunk in iter(lambda: f.read(65536), b''):
+          md5.update(chunk)
+          sha1.update(chunk)
+          crc32 = zlib.crc32(chunk, crc32)
+
+    headers = {'Range': f'bytes={resume_from}-'} if resume_from > 0 else {}
 
     try:
       DebugHelper.print(DebugType.TYPE_INFO, f"Downloading [{platform}] {rom_name}", "downloader")
-      DebugHelper.print(DebugType.TYPE_DEBUG, f"Downloading from [{rom_url}]", "downloader")
-      with requests.get(rom_url, timeout=60, stream=True) as response:
-        response.raise_for_status()
-        total_bytes = int(response.headers.get("content-length") or rom_data.get("size") or 0)
-        with open(temp_path, "wb") as of:
-          for chunk in response.iter_content(chunk_size=1024 * 64):
+      DebugHelper.print(DebugType.TYPE_DEBUG, f"URL: {rom_url}", "downloader")
+
+      with requests.get(rom_url, timeout=60, stream=True, headers=headers) as resp:
+        # Server returned 200 instead of 206 → doesn't support Range; restart fresh
+        if resume_from > 0 and resp.status_code == 200:
+          resume_from = 0
+          bytes_done  = 0
+          md5, sha1, crc32 = hashlib.md5(), hashlib.sha1(), 0
+        else:
+          resp.raise_for_status()
+
+        total_bytes = int(resp.headers.get("content-length") or rom_data.get("size") or 0)
+        if resume_from > 0:
+          total_bytes += resume_from
+
+        open_mode = "ab" if resume_from > 0 else "wb"
+        with open(temp_path, open_mode) as of:
+          for chunk in resp.iter_content(chunk_size=65536):
             if not chunk:
               continue
             if self._cancel_requested:
@@ -202,15 +224,25 @@ class DownloadWorker(QObject):
             elapsed = max(time.monotonic() - started_at, 0.001)
             self.progress.emit(bytes_done, total_bytes, bytes_done / elapsed)
 
-      self._validateHash("MD5", md5.hexdigest(), rom_data.get("md5", ""))
-      self._validateHash("SHA1", sha1.hexdigest(), rom_data.get("sha1", ""))
-      self._validateHash("CRC32", f"{crc32 & 0xffffffff:08x}", rom_data.get("crc32", ""))
+      # Validate — hash mismatch: delete corrupt .part
+      try:
+        self._validateHash("MD5",   md5.hexdigest(),              rom_data.get("md5", ""))
+        self._validateHash("SHA1",  sha1.hexdigest(),             rom_data.get("sha1", ""))
+        self._validateHash("CRC32", f"{crc32 & 0xffffffff:08x}", rom_data.get("crc32", ""))
+      except ValueError:
+        if os.path.exists(temp_path):
+          os.remove(temp_path)
+        raise
+
       os.replace(temp_path, output_path)
       return output_path
+
+    except InterruptedError:
+      raise  # keep .part for future resume
+    except ValueError:
+      raise  # .part already removed above
     except Exception:
-      if os.path.exists(temp_path):
-        os.remove(temp_path)
-      raise
+      raise  # keep .part — network/IO error, resume later
 
 
   def _validateHash(self, label: str, actual: str, expected: str):
@@ -222,17 +254,52 @@ class DownloadWorker(QObject):
     import os, zipfile
     from py7zr import SevenZipFile
 
-    path = self.settings.get('download_path')
+    extract_dir = os.path.dirname(archive_path)
     DebugHelper.print(DebugType.TYPE_INFO, f"Unzipping [{archive_path}]...", "unzip")
     if archive_path.lower().endswith('.zip'):
       with zipfile.ZipFile(archive_path) as archive:
-        archive.extractall(path)
+        archive.extractall(extract_dir)
     else:
       with SevenZipFile(archive_path) as archive:
-        archive.extractall(path)
+        archive.extractall(extract_dir)
     os.remove(archive_path)
 
 
+
+
+class HashCheckWorker(QRunnable):
+  """Compute MD5/SHA1/CRC32 of a file and emit results."""
+
+  class _Sig(QObject):
+    done  = pyqtSignal(dict)   # {"MD5": (actual, expected), ...}
+    error = pyqtSignal(str)
+
+  def __init__(self, file_path: str, expected: dict):
+    super().__init__()
+    self.setAutoDelete(True)
+    self.signals   = self._Sig()
+    self._path     = file_path
+    self._expected = expected   # {"md5": "...", "sha1": "...", "crc32": "..."}
+
+  def run(self):
+    import hashlib, zlib
+    md5 = hashlib.md5()
+    sha1 = hashlib.sha1()
+    crc32 = 0
+    try:
+      with open(self._path, 'rb') as f:
+        for chunk in iter(lambda: f.read(65536), b''):
+          md5.update(chunk)
+          sha1.update(chunk)
+          crc32 = zlib.crc32(chunk, crc32)
+      results = {
+        "MD5":   (md5.hexdigest(),               self._expected.get("md5",   "")),
+        "SHA1":  (sha1.hexdigest(),              self._expected.get("sha1",  "")),
+        "CRC32": (f"{crc32 & 0xffffffff:08x}",  self._expected.get("crc32", "")),
+      }
+      self.signals.done.emit(results)
+    except Exception as e:
+      self.signals.error.emit(str(e))
 
 
 class Tools():
