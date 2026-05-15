@@ -21,6 +21,14 @@ retromanager is being shaped into a retro library manager: simple browsing, reli
 - [x] Add friendly empty/error states.
 - [x] Debounce search filter for large catalogues.
 - [x] Add feedback when items are added to the queue.
+- [x] Apply consistent dark theme (remove qdarktheme dependency).
+- [x] Rewrite About dialog with correct app identity and dark theme.
+- [x] Polish download error dialog: frameless, PT-BR text, retry action.
+- [x] Fix column auto-resize and format badge rendering.
+- [x] Custom app icon: Atari-M style amber logo on dark background.
+- [x] Full PT-BR interface translation.
+- [x] Grid view with Libretro box art thumbnails (background fetch, cache).
+- [x] Visual indicator for already-downloaded ROMs (list ✓ badge + grid overlay).
 
 ## Phase 2 - Reliable Downloads
 
@@ -36,10 +44,10 @@ retromanager is being shaped into a retro library manager: simple browsing, reli
 
 ## Phase 3 - Local Library
 
-- Organize files by platform.
-- Detect already downloaded ROMs.
-- Import existing folders.
-- Re-check hashes on demand.
+- [x] Detect already downloaded ROMs and highlight them in list and grid.
+- [ ] Organize files by platform folder.
+- [ ] Import existing folders into the library.
+- [ ] Re-check hashes on demand.
 
 ## Phase 4 - RetroArch
 

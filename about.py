@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 )
 
-from _constants import RESOURCES_FILE
+from _constants import ICON_FILE
 
 
 class About(QDialog):
@@ -25,7 +25,7 @@ class About(QDialog):
         hdr.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         logo = QLabel()
-        px = QPixmap(":/app.ico")
+        px = QPixmap(ICON_FILE)
         if not px.isNull():
             logo.setPixmap(px.scaled(56, 56, Qt.AspectRatioMode.KeepAspectRatio,
                                      Qt.TransformationMode.SmoothTransformation))

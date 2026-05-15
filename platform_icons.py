@@ -102,12 +102,12 @@ class PlatformItemWidget(QWidget):
         )
 
         if count > 0:
-            lbl_count = QLabel(f"{count:,} titles")
+            lbl_count = QLabel(f"{count:,} títulos")
             lbl_count.setStyleSheet(
                 "font-size:10px;color:#6b7a99;background:transparent;border:none;"
             )
         else:
-            lbl_count = QLabel("Unavailable")
+            lbl_count = QLabel("Indisponível")
             lbl_count.setStyleSheet(
                 "font-size:10px;color:#3d4f6e;background:transparent;border:none;"
             )
@@ -142,6 +142,7 @@ class GameTitleDelegate(QStyledItemDelegate):
             painter.fillRect(option.rect, QColor("#1e2535"))
 
         title = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        downloaded = bool(index.data(Qt.ItemDataRole.UserRole + 1))
         clean, tags = parse_title_tags(title)
 
         rect = option.rect.adjusted(8, 0, -8, 0)
@@ -164,10 +165,25 @@ class GameTitleDelegate(QStyledItemDelegate):
             badge_rects.append((tag, r))
             x_right -= bw + 4
 
+        # Downloaded checkmark badge (rightmost)
+        if downloaded:
+            chk_text = "✓"
+            chk_w = bfm.horizontalAdvance(chk_text) + self._BADGE_PAD_H * 2
+            chk_h = bfm.height() + self._BADGE_PAD_V * 2
+            chk_y = rect.top() + (rect.height() - chk_h) // 2
+            chk_r = QRect(x_right - chk_w, chk_y, chk_w, chk_h)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("#1a3a26"))
+            painter.drawRoundedRect(chk_r, self._BADGE_RADIUS, self._BADGE_RADIUS)
+            painter.setFont(bf)
+            painter.setPen(QColor("#34c97e"))
+            painter.drawText(chk_r, Qt.AlignmentFlag.AlignCenter, chk_text)
+            x_right -= chk_w + 4
+
         # Title
         title_rect = QRect(rect.left(), rect.top(), x_right - rect.left() - 4, rect.height())
         painter.setFont(option.font)
-        painter.setPen(QColor("#e8ecf5"))
+        painter.setPen(QColor("#34c97e") if downloaded else QColor("#e8ecf5"))
         painter.drawText(
             title_rect,
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,

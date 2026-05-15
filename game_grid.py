@@ -101,6 +101,30 @@ class GameCardWidget(QFrame):
         p.end()
         self._thumb.setPixmap(canvas)
 
+    def set_downloaded(self, downloaded: bool):
+        if not downloaded:
+            return
+        px = self._thumb.pixmap()
+        if px is None or px.isNull():
+            return
+        p = QPainter(px)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        badge_w, badge_h, radius = 22, 22, 11
+        bx = THUMB_W - badge_w - 4
+        by = 4
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor("#1a3a26"))
+        p.drawRoundedRect(bx, by, badge_w, badge_h, radius, radius)
+        f = QFont()
+        f.setPointSize(10)
+        f.setBold(True)
+        p.setFont(f)
+        p.setPen(QColor("#34c97e"))
+        from PyQt6.QtCore import QRect
+        p.drawText(QRect(bx, by, badge_w, badge_h), Qt.AlignmentFlag.AlignCenter, "✓")
+        p.end()
+        self._thumb.setPixmap(px)
+
     def mouseDoubleClickEvent(self, event):
         self.doubleClicked.emit(self._rom_name)
         super().mouseDoubleClickEvent(event)
@@ -130,6 +154,7 @@ class GameGridWidget(QScrollArea):
 
         self._cards: dict[str, GameCardWidget] = {}
         self._platform = ""
+        self._downloaded_set: set[str] = set()
         self._cols = 4
 
         self._pool = QThreadPool.globalInstance()
@@ -142,8 +167,9 @@ class GameGridWidget(QScrollArea):
 
     # ── Public API ──────────────────────────────────────────
 
-    def load(self, platform: str, rom_names: list[str]):
+    def load(self, platform: str, rom_names: list[str], downloaded_set: set[str] | None = None):
         self._platform = platform
+        self._downloaded_set = downloaded_set or set()
 
         while self._grid.count():
             item = self._grid.takeAt(0)
@@ -161,6 +187,9 @@ class GameGridWidget(QScrollArea):
             self._cards[name] = card
             if path := load_cached_path(platform, name):
                 card.set_thumbnail(path)
+                card.set_downloaded(name in self._downloaded_set)
+            elif name in self._downloaded_set:
+                card.set_downloaded(True)
 
         if len(rom_names) > MAX_GRID_ITEMS:
             note = QLabel(
@@ -198,6 +227,7 @@ class GameGridWidget(QScrollArea):
             return
         if card := self._cards.get(rom_name):
             card.set_thumbnail(path)
+            card.set_downloaded(rom_name in self._downloaded_set)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

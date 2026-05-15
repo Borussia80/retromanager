@@ -27,8 +27,9 @@ if __name__ == '__main__':
   # Initialize PyQt
   app = QApplication(sys.argv)
 
-  # Load theme and resources
+  # Load theme, icon and resources
   app.setStyleSheet(DARK_THEME)
+  app.setWindowIcon(QIcon(ICON_FILE))
   QResource.registerResource(RESOURCES_FILE)
 
   # Show the splashscreen and do starting stuff

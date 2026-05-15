@@ -38,7 +38,7 @@ class DownloadItemWidget(QWidget):
             QProgressBar::chunk { background:#4f8ef7; border-radius:2px; }
         """)
 
-        self.lbl_meta = QLabel("Queued")
+        self.lbl_meta = QLabel("Na fila")
         self.lbl_meta.setStyleSheet("font-size:10px;color:#6b7a99;border:none;")
 
         lay.addWidget(self.lbl_name)
@@ -46,7 +46,7 @@ class DownloadItemWidget(QWidget):
         lay.addWidget(self.lbl_meta)
 
     def set_downloading(self):
-        self.lbl_meta.setText("Starting…")
+        self.lbl_meta.setText("Iniciando…")
         self.lbl_meta.setStyleSheet("font-size:10px;color:#4f8ef7;border:none;")
 
     def set_progress(self, bytes_done: int, total_bytes: int, speed: float):
@@ -67,7 +67,7 @@ class DownloadItemWidget(QWidget):
             QProgressBar { background:#252d40; border-radius:2px; border:none; }
             QProgressBar::chunk { background:#34c97e; border-radius:2px; }
         """)
-        self.lbl_meta.setText("Done")
+        self.lbl_meta.setText("Concluído")
         self.lbl_meta.setStyleSheet("font-size:10px;color:#34c97e;border:none;")
 
     def set_failed(self, error: str = ""):
@@ -75,11 +75,11 @@ class DownloadItemWidget(QWidget):
             QProgressBar { background:#252d40; border-radius:2px; border:none; }
             QProgressBar::chunk { background:#e8453c; border-radius:2px; }
         """)
-        self.lbl_meta.setText(f"Failed  ·  {error[:40]}" if error else "Failed")
+        self.lbl_meta.setText(f"Falhou  ·  {error[:40]}" if error else "Falhou")
         self.lbl_meta.setStyleSheet("font-size:10px;color:#e8453c;border:none;")
 
     def set_cancelled(self):
-        self.lbl_meta.setText("Cancelled")
+        self.lbl_meta.setText("Cancelado")
         self.lbl_meta.setStyleSheet("font-size:10px;color:#6b7a99;border:none;")
 
 
@@ -121,7 +121,7 @@ class DownloadQueuePanel(QWidget):
 
         self._btn_start = QPushButton("▶")
         self._btn_start.setFixedSize(24, 24)
-        self._btn_start.setToolTip("Start downloading queued items")
+        self._btn_start.setToolTip("Iniciar download dos itens na fila")
         self._btn_start.setStyleSheet("""
             QPushButton {
                 background:#4f8ef7;color:#fff;border:none;
@@ -142,7 +142,7 @@ class DownloadQueuePanel(QWidget):
         root.addWidget(hdr)
 
         # Empty state
-        self._empty_lbl = QLabel("No downloads yet.")
+        self._empty_lbl = QLabel("Nenhum download ainda.")
         self._empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_lbl.setStyleSheet("color:#3d4f6e;font-size:12px;padding:20px;background:transparent;border:none;")
 
