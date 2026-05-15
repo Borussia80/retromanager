@@ -66,16 +66,32 @@ def find_rom_file(settings, rom_name: str, platform: str | None) -> str | None:
     return None
 
 
+def _fuzzy_match(kw: str, text: str) -> bool:
+    """Subsequence match — all chars of kw appear in order in text."""
+    it = iter(text)
+    return all(c in it for c in kw)
+
+
 def rom_matches_filters(rom_name: str, keywords: list[str], region: str | None,
                         shortname: str = "") -> bool:
-    """Return True if the ROM passes the active keyword and region filters."""
+    """Return True if the ROM passes the active keyword and region filters.
+
+    Each keyword is matched by exact substring first; if the keyword is at least
+    3 characters long and has no exact match, a subsequence (fuzzy) match is tried.
+    """
     target = rom_name.lower()
     if region and f"({region})".lower() not in target:
         return False
     if not keywords:
         return True
     alt = shortname.lower()
-    return all(kw in target or (alt and kw in alt) for kw in keywords)
+    for kw in keywords:
+        if kw in target or (alt and kw in alt):
+            continue
+        if len(kw) >= 3 and (_fuzzy_match(kw, target) or (alt and _fuzzy_match(kw, alt))):
+            continue
+        return False
+    return True
 
 
 def build_rom_summary(platform_name: str, rom_name: str, rom_data: RomEntry,

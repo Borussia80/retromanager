@@ -133,6 +133,15 @@ class TestRomMatchesFilters:
     def test_case_insensitive(self):
         assert library_service.rom_matches_filters("SONIC THE HEDGEHOG", ["sonic"], None)
 
+    def test_fuzzy_subsequence_match(self):
+        assert library_service.rom_matches_filters("Sonic the Hedgehog", ["snic"], None)
+
+    def test_fuzzy_no_match(self):
+        assert not library_service.rom_matches_filters("Mario Bros (USA)", ["sonic"], None)
+
+    def test_fuzzy_requires_min_3_chars(self):
+        assert not library_service.rom_matches_filters("Mario Bros", ["sz"], None)
+
 
 # ─── build_rom_summary ─────────────────────────────────────────────────────────
 
