@@ -392,7 +392,11 @@ class MainWindow(QMainWindow):
         act_details.setEnabled(has_sel)
         act_details.triggered.connect(self._showSelectedRomDetails)
 
-        menu.exec([act_queue, act_now, act_details], QCursor.pos(), parent=self.tw_romsList)
+        menu.addAction(act_queue)
+        menu.addAction(act_now)
+        menu.addSeparator()
+        menu.addAction(act_details)
+        menu.exec(QCursor.pos())
 
     # ──────────────────────────────────────────────
     # Queue management

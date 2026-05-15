@@ -148,6 +148,9 @@ class DownloadWorker(QObject):
         if self.settings.get('unzip'):
           self._unzip(output_path)
         self.completedItem.emit(platform, rom_name)
+      except InterruptedError:
+        self.cancelled.emit()
+        break
       except Exception as e:
         self.failedItem.emit(platform, rom_name, str(e))
         break
