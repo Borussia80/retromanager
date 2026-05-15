@@ -886,8 +886,9 @@ class MainWindow(QMainWindow):
         self._detail_panel.show_rom(platform, rom_name, display_name, rom_data, is_fav)
 
     def _onDetailDownload(self, platform: str, rom_name: str):
-        self.download_queue.add(platform, [rom_name])
-        self.download_panel.add_item(rom_name)
+        added = self.download_queue.add(platform, [rom_name])
+        if added:
+            self.download_panel.add_item(rom_name)
         self._updateStatusbarQueueText()
         self._launchRomsDownload()
 
@@ -1247,7 +1248,7 @@ class MainWindow(QMainWindow):
             return
         platform = self.lw_platforms.selectedItems()[0].data(Qt.ItemDataRole.UserRole)
         selected_names = [
-            self.tw_romsList.item(row.row(), 0).text()
+            self._row_shortname(row.row())
             for row in self.tw_romsList.selectedIndexes()
             if row.column() == 0 and not self.tw_romsList.isRowHidden(row.row())
         ]
