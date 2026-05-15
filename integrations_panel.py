@@ -1,5 +1,4 @@
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel
 
 
 class _StatusRow(QWidget):
@@ -45,48 +44,3 @@ class _StatusRow(QWidget):
         self._lbl_status.setStyleSheet(self._STYLE_STAT_OFF)
 
 
-class IntegrationsPanel(QWidget):
-    """Bottom-of-sidebar widget showing RetroArch and Lutris detection status."""
-
-    def __init__(self, retroarch, lutris, parent=None):
-        super().__init__(parent)
-        self.setObjectName("IntegrationsPanel")
-        self.setStyleSheet(
-            "QWidget#IntegrationsPanel {"
-            "  background:#161b27;"
-            "  border-top:1px solid #2e3a52;"
-            "}"
-        )
-
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 8, 0, 10)
-        root.setSpacing(2)
-
-        hdr = QLabel("INTEGRAÇÕES")
-        hdr.setStyleSheet(
-            "font-size:9px;font-weight:600;color:#3d4f6e;letter-spacing:1px;"
-            "background:transparent;border:none;padding-left:12px;padding-bottom:4px;"
-        )
-        root.addWidget(hdr)
-
-        self._ra_row = _StatusRow("RetroArch")
-        self._lt_row = _StatusRow("Lutris")
-        root.addWidget(self._ra_row)
-        root.addWidget(self._lt_row)
-
-        self.refresh(retroarch, lutris)
-
-    def refresh(self, retroarch, lutris):
-        if retroarch.detected:
-            count = retroarch.total_playlist_items()
-            txt = f"{count:,} na playlist" if count else "Detectado"
-            self._ra_row.set_detected(txt)
-        else:
-            self._ra_row.set_missing()
-
-        if lutris.detected:
-            count = lutris.game_count()
-            txt = f"{count:,} jogos" if count else "Detectado"
-            self._lt_row.set_detected(txt)
-        else:
-            self._lt_row.set_missing()

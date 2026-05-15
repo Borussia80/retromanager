@@ -24,7 +24,6 @@ from options import Options
 from about import About
 from retroarch_helper import RetroArchHelper
 from lutris_helper import LutrisHelper
-from integrations_panel import IntegrationsPanel
 
 
 class MainWindow(QMainWindow):
@@ -34,7 +33,12 @@ class MainWindow(QMainWindow):
         self.settings = settings
         self.updater = updater
         self.platforms = platforms
-        self.optionsDialog = Options(self, settings)
+
+        self._retroarch = RetroArchHelper()
+        self._lutris = LutrisHelper()
+        self._favorites = FavoritesManager()
+
+        self.optionsDialog = Options(self, settings, self._retroarch, self._lutris)
         self.aboutDialog = About(self)
         self.download_queue = DownloadQueue(self)
         self.download_thread = None
@@ -44,10 +48,6 @@ class MainWindow(QMainWindow):
         self.download_failed = False
         self._active_rom_name = None
         self.table_placeholder_active = False
-
-        self._retroarch = RetroArchHelper()
-        self._lutris = LutrisHelper()
-        self._favorites = FavoritesManager()
 
         self.filter_timer = QTimer(self)
         self.filter_timer.setSingleShot(True)
@@ -112,9 +112,6 @@ class MainWindow(QMainWindow):
         )
         self.lw_platforms.setSpacing(0)
         sidebar_lay.addWidget(self.lw_platforms)
-
-        self._integrations_panel = IntegrationsPanel(self._retroarch, self._lutris)
-        sidebar_lay.addWidget(self._integrations_panel)
 
         self._splitter.addWidget(sidebar)
 
@@ -280,6 +277,17 @@ class MainWindow(QMainWindow):
 
         self.statusbar_update = QLabel()
         self.statusBar().addPermanentWidget(self.statusbar_update)
+
+        # Integrations indicator — shown only when at least one is detected
+        self._statusbar_integrations = QLabel()
+        self._statusbar_integrations.setStyleSheet(
+            "font-size:10px;color:#5a9060;background:transparent;padding:0 6px;"
+        )
+        self._statusbar_integrations.setToolTip("Abrir Configurações → Integrações")
+        self._statusbar_integrations.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self._statusbar_integrations.mousePressEvent = lambda _: self.optionsDialog.show()
+        self.statusBar().addPermanentWidget(self._statusbar_integrations)
+        self._refresh_integrations_statusbar()
 
     def _connect_signals(self):
         self.lw_platforms.itemClicked.connect(self._onListwidgetSelectionChanged)
@@ -476,6 +484,15 @@ class MainWindow(QMainWindow):
         msg = (f"'{rom_name}' adicionado aos favoritos."
                if now_fav else f"'{rom_name}' removido dos favoritos.")
         self.statusBar().showMessage(msg, 3000)
+
+    def _refresh_integrations_statusbar(self):
+        parts = []
+        if self._retroarch.detected:
+            parts.append("RetroArch ✓")
+        if self._lutris.detected:
+            parts.append("Lutris ✓")
+        self._statusbar_integrations.setText("  ·  ".join(parts))
+        self._statusbar_integrations.setVisible(bool(parts))
 
     def _restoreQueueToPanel(self):
         for _, rom_name in self.download_queue.items():
@@ -761,7 +778,8 @@ class MainWindow(QMainWindow):
             )
             return
         if self._retroarch.add_to_playlist(platform, rom_name, rom_path):
-            self._integrations_panel.refresh(self._retroarch, self._lutris)
+            self.optionsDialog.refresh_integrations()
+            self._refresh_integrations_statusbar()
             self.statusBar().showMessage(
                 f"'{rom_name}' adicionado à playlist do RetroArch.", 4000
             )
@@ -788,7 +806,8 @@ class MainWindow(QMainWindow):
         core = self._retroarch.core_path(platform)
         ra_exe = self._retroarch.exe
         if self._lutris.add_game(platform, rom_name, rom_path, ra_exe, core):
-            self._integrations_panel.refresh(self._retroarch, self._lutris)
+            self.optionsDialog.refresh_integrations()
+            self._refresh_integrations_statusbar()
             self.statusBar().showMessage(
                 f"'{rom_name}' enviado ao Lutris.", 4000
             )
