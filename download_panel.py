@@ -1,7 +1,7 @@
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QProgressBar, QScrollArea,
+    QProgressBar, QScrollArea, QPushButton,
 )
 
 
@@ -84,6 +84,8 @@ class DownloadItemWidget(QWidget):
 
 
 class DownloadQueuePanel(QWidget):
+    downloadRequested = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumWidth(200)
@@ -117,9 +119,26 @@ class DownloadQueuePanel(QWidget):
             "padding:1px 7px;border-radius:9px;"
         )
 
+        self._btn_start = QPushButton("▶")
+        self._btn_start.setFixedSize(24, 24)
+        self._btn_start.setToolTip("Start downloading queued items")
+        self._btn_start.setStyleSheet("""
+            QPushButton {
+                background:#4f8ef7;color:#fff;border:none;
+                border-radius:5px;font-size:11px;font-weight:600;
+            }
+            QPushButton:hover { background:#3a6fd4; }
+            QPushButton:pressed { background:#2e5ab0; }
+            QPushButton:disabled { background:#1e2535;color:#3d4f6e; }
+        """)
+        self._btn_start.setEnabled(False)
+        self._btn_start.clicked.connect(self.downloadRequested)
+
         hdr_lay.addWidget(lbl_title)
         hdr_lay.addStretch()
         hdr_lay.addWidget(self._badge)
+        hdr_lay.addSpacing(6)
+        hdr_lay.addWidget(self._btn_start)
         root.addWidget(hdr)
 
         # Empty state
@@ -161,6 +180,10 @@ class DownloadQueuePanel(QWidget):
                 "padding:1px 7px;border-radius:9px;"
             )
             self._empty_lbl.show()
+
+    def set_downloading(self, active: bool):
+        """Disable the Start button while a download is in progress."""
+        self._btn_start.setEnabled(not active)
 
     def add_item(self, rom_name: str):
         if rom_name in self._items:

@@ -149,6 +149,16 @@ class MainWindow(QMainWindow):
         headers = ["Game", "Size", "File", "MD5", "CRC32", "SHA1"]
         for i, h in enumerate(headers):
             self.tw_romsList.setHorizontalHeaderItem(i, QTableWidgetItem(h))
+
+        hh = self.tw_romsList.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        hh.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        self.tw_romsList.setColumnWidth(2, 48)
+
         self._toggleTechnicalColumns(False)
 
         # Game title delegate for badges
@@ -216,8 +226,9 @@ class MainWindow(QMainWindow):
     def _connect_signals(self):
         self.lw_platforms.itemClicked.connect(self._onListwidgetSelectionChanged)
         self.tw_romsList.customContextMenuRequested.connect(self._onRomslistRightClick)
-        self.tw_romsList.itemDoubleClicked.connect(self._showSelectedRomDetails)
+        self.tw_romsList.itemDoubleClicked.connect(self._downloadNowContextMenu)
         self.le_filter.textChanged.connect(self._filterTableWidget)
+        self.download_panel.downloadRequested.connect(self._launchRomsDownload)
         self.pb_eur.toggled.connect(self._filterTableWidget)
         self.pb_usa.toggled.connect(self._filterTableWidget)
         self.pb_jpn.toggled.connect(self._filterTableWidget)
@@ -289,8 +300,6 @@ class MainWindow(QMainWindow):
             self.tw_romsList.setItem(i, 4, rom_crc32_item)
             self.tw_romsList.setItem(i, 5, rom_sha1_item)
 
-        self.tw_romsList.resizeColumnsToContents()
-        self.tw_romsList.setColumnWidth(0, max(380, self.tw_romsList.columnWidth(0)))
         self.tw_romsList.setSortingEnabled(True)
         self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
         self._applyTableFilter()
@@ -421,10 +430,13 @@ class MainWindow(QMainWindow):
 
     def _updateStatusbarQueueText(self):
         count = self.download_queue.getTotalCount()
+        is_running = bool(self.download_thread and self.download_thread.isRunning())
         if count > 0:
             self.statusbar_queue.setText(f"<a href='#'>{count} item(s) in queue</a>")
         else:
             self.statusbar_queue.setText("")
+        self.download_panel.set_downloading(is_running)
+        self.download_panel._btn_start.setEnabled(count > 0 and not is_running)
 
     # ──────────────────────────────────────────────
     # Download
@@ -448,6 +460,8 @@ class MainWindow(QMainWindow):
         self.download_panel.clear()
         for _, rom_name in items:
             self.download_panel.add_item(rom_name)
+        self.download_panel.set_downloading(True)
+        self.download_panel._btn_start.setEnabled(False)
 
         self.download_thread = QThread(self)
         self.download_worker = DownloadWorker(self.settings, self.platforms, items)
@@ -498,6 +512,7 @@ class MainWindow(QMainWindow):
         self.download_thread = None
         self.download_worker = None
         self._active_rom_name = None
+        self._updateStatusbarQueueText()
         if not self.download_failed:
             self.statusBar().showMessage(
                 f"Downloaded {self.download_completed_count} item(s).", 5000

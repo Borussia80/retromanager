@@ -219,13 +219,17 @@ class DownloadWorker(QObject):
 
 
   def _unzip(self, archive_path: str):
-    import os
+    import os, zipfile
     from py7zr import SevenZipFile
 
     path = self.settings.get('download_path')
     DebugHelper.print(DebugType.TYPE_INFO, f"Unzipping [{archive_path}]...", "unzip")
-    with SevenZipFile(archive_path) as archive:
-      archive.extractall(path)
+    if archive_path.lower().endswith('.zip'):
+      with zipfile.ZipFile(archive_path) as archive:
+        archive.extractall(path)
+    else:
+      with SevenZipFile(archive_path) as archive:
+        archive.extractall(path)
     os.remove(archive_path)
 
 
