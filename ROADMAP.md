@@ -14,9 +14,10 @@ retromanager is being shaped into a retro library manager: simple browsing, reli
 
 ## Phase 1 - Clear UX
 
-- Platform list with availability and item counts.
-- Human-first filters for region, language, and release type.
-- Hide hashes in an advanced details panel.
+- [x] Platform list with availability and item counts.
+- [x] Human-first region filters and safer search.
+- [x] Hide hashes behind technical columns/details.
+- [x] Add game details from double-click/context menu.
 - Add friendly empty/error states.
 
 ## Phase 2 - Reliable Downloads

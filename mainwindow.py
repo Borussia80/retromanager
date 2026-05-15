@@ -47,9 +47,22 @@ class MainWindow(QMainWindow, Ui):
     self.download_queue = DownloadQueue(self, self.platforms)
 
     # Setup form
-    self.setWindowTitle(f"{self.windowTitle()} {self.updater.currentVersionString()}")
+    self.setWindowTitle(f"retromanager {self.updater.currentVersionString()}")
+    self.le_filter.setPlaceholderText("Search games by title, region, version, prototype, beta...")
+    self.gb_regions.setTitle("Region")
+    self.pb_eur.setText("Europe")
+    self.pb_usa.setText("USA")
+    self.pb_jpn.setText("Japan")
+    self.pb_all.setText("All")
+    self.pb_eur.setToolTip("Show Europe releases")
+    self.pb_usa.setToolTip("Show USA releases")
+    self.pb_jpn.setToolTip("Show Japan releases")
+    self.pb_all.setToolTip("Show every region")
+    self.gb_downloads.setTitle("Download queue")
     self.tw_romsList.setColumnWidth(0, int(self.tw_romsList.width() / 2.42))
     self.tw_romsList.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    self.tw_romsList.itemDoubleClicked.connect(self._showSelectedRomDetails)
+    self._setupTableHeaders()
     self.gb_downloads.setLayout(self.download_pane.parent_gb_layout)
 
     # Setup statusbar
@@ -73,6 +86,10 @@ class MainWindow(QMainWindow, Ui):
     self.actionCheck_for_updates.triggered.connect(lambda: self._checkUpdates())
     self.actionAbout.triggered.connect(self.aboutDialog.show)
     self.actionAbout_Qt.triggered.connect(lambda: QMessageBox.aboutQt(self, 'About Qt...'))
+    self.actionToggleTechnical = QAction("Show technical columns", self)
+    self.actionToggleTechnical.setCheckable(True)
+    self.actionToggleTechnical.triggered.connect(self._toggleTechnicalColumns)
+    self.menuOptions.insertAction(self.actionShowOptions, self.actionToggleTechnical)
     
     # Setup other events
     self.lw_platforms.itemClicked.connect(self._onListwidgetSelectionChanged)
@@ -87,6 +104,21 @@ class MainWindow(QMainWindow, Ui):
     # Startup task(s)
     self._checkUpdates(at_launch=True)
     self._loadPlatformsList()
+
+
+  def _setupTableHeaders(self):
+    self.tw_romsList.horizontalHeaderItem(0).setText("Game")
+    self.tw_romsList.horizontalHeaderItem(1).setText("Size")
+    self.tw_romsList.horizontalHeaderItem(2).setText("File")
+    self.tw_romsList.horizontalHeaderItem(3).setText("MD5")
+    self.tw_romsList.horizontalHeaderItem(4).setText("CRC32")
+    self.tw_romsList.horizontalHeaderItem(5).setText("SHA1")
+    self._toggleTechnicalColumns(False)
+
+
+  def _toggleTechnicalColumns(self, checked: bool):
+    for column in [3, 4, 5]:
+      self.tw_romsList.setColumnHidden(column, not checked)
 
 
   def _checkUpdates(self, at_launch: bool = False):
@@ -142,17 +174,29 @@ class MainWindow(QMainWindow, Ui):
 
   def _filterTableWidget(self):
     """Handle table filtering."""
-    # Made the RegEx
-    keywords = self.le_filter.text()
-    if self.pb_eur.isChecked(): keywords += " Europe"
-    if self.pb_usa.isChecked(): keywords += " USA"
-    if self.pb_jpn.isChecked(): keywords += " Japan"
-    keywords = keywords.replace(' ', '.+')
+    keywords = self.le_filter.text().strip().lower().split()
+    region = self._selectedRegion()
 
-    # Fill the table based on RegEx
-    to_keep = [item for item in self.tw_romsList.findItems(keywords, Qt.MatchFlag.MatchRegularExpression)]
     for i in range(self.tw_romsList.rowCount()):
-      self.tw_romsList.hideRow(i) if self.tw_romsList.item(i, 0) not in to_keep else self.tw_romsList.showRow(i)
+      rom_name = self.tw_romsList.item(i, 0).text()
+      self.tw_romsList.setRowHidden(i, not self._romMatchesFilters(rom_name, keywords, region))
+
+    visible_count = sum(0 if self.tw_romsList.isRowHidden(i) else 1 for i in range(self.tw_romsList.rowCount()))
+    self.statusbar.showMessage(f"{visible_count} visible item(s)", 3000)
+
+
+  def _selectedRegion(self):
+    if self.pb_eur.isChecked(): return "Europe"
+    if self.pb_usa.isChecked(): return "USA"
+    if self.pb_jpn.isChecked(): return "Japan"
+    return None
+
+
+  def _romMatchesFilters(self, rom_name: str, keywords: list[str], region: str | None) -> bool:
+    search_target = rom_name.lower()
+    if region and f"({region})".lower() not in search_target:
+      return False
+    return all(keyword in search_target for keyword in keywords)
 
 
   def _updateStatusbarQueueText(self):
@@ -224,6 +268,7 @@ class MainWindow(QMainWindow, Ui):
 
       # Creating Items for table's row
       rom_name_item = QTableWidgetItem(rom_name)
+      rom_name_item.setToolTip(self._buildRomSummary(platform_name, rom_name, rom_data))
       rom_size_item = QTableWidgetItem(Tools.convertSizeToReadable(rom_data['size']))
       rom_size_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
       rom_format_item = QTableWidgetItem(rom_data['format'])
@@ -245,10 +290,70 @@ class MainWindow(QMainWindow, Ui):
     
     # Resize columns and sort
     self.tw_romsList.resizeColumnsToContents()
+    self.tw_romsList.horizontalHeader().setStretchLastSection(False)
+    self.tw_romsList.setColumnWidth(0, max(360, self.tw_romsList.columnWidth(0)))
     #self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
 
     # Apply any previous filters
     self._filterTableWidget()
+    self.statusbar.showMessage(f"{platform_name}: {self.platforms.getRomsCount(platform_name)} item(s)", 5000)
+
+
+  def _buildRomSummary(self, platform_name: str, rom_name: str, rom_data: dict) -> str:
+    tags = self._extractReleaseTags(rom_name)
+    tags_text = ", ".join(tags) if tags else "No release tags found"
+    return (
+      f"{rom_name}\n"
+      f"Platform: {platform_name}\n"
+      f"Tags: {tags_text}\n"
+      f"Size: {Tools.convertSizeToReadable(rom_data['size'])}\n"
+      f"File: {rom_data['format']}"
+    )
+
+
+  def _extractReleaseTags(self, rom_name: str) -> list[str]:
+    tags = []
+    current = ""
+    inside = False
+    for char in rom_name:
+      if char == "(":
+        inside = True
+        current = ""
+      elif char == ")" and inside:
+        inside = False
+        if current:
+          tags.append(current)
+      elif inside:
+        current += char
+    return tags
+
+
+  def _selectedRomContext(self):
+    selected_rows = self.tw_romsList.selectionModel().selectedRows()
+    if not selected_rows or not self.lw_platforms.selectedItems():
+      return None
+    row = selected_rows[0].row()
+    platform_name = self.lw_platforms.selectedItems()[0].data(Qt.ItemDataRole.UserRole)
+    rom_name = self.tw_romsList.item(row, 0).text()
+    return platform_name, rom_name, self.platforms.getRom(platform_name, rom_name)
+
+
+  def _showSelectedRomDetails(self, *args):
+    context = self._selectedRomContext()
+    if not context:
+      return
+
+    platform_name, rom_name, rom_data = context
+    details = (
+      f"<b>{rom_name}</b><br><br>"
+      f"<b>Platform:</b> {platform_name}<br>"
+      f"<b>Size:</b> {Tools.convertSizeToReadable(rom_data['size'])}<br>"
+      f"<b>File:</b> {rom_data['format']}<br><br>"
+      f"<b>MD5:</b> {rom_data['md5']}<br>"
+      f"<b>CRC32:</b> {rom_data['crc32'].upper()}<br>"
+      f"<b>SHA1:</b> {rom_data['sha1']}"
+    )
+    QMessageBox.information(self, "Game details", details)
 
 
   def _onDownloadPaneClicked(self):
@@ -262,11 +367,18 @@ class MainWindow(QMainWindow, Ui):
 
   def _onRomslistRightClick(self, point: QPoint):
     menu = QMenu(self.tw_romsList)
+    has_selection = bool(self.tw_romsList.selectionModel().selectedRows())
     
     add_to_queue = QAction("Add to Queue")
+    add_to_queue.setEnabled(has_selection)
     add_to_queue.triggered.connect(lambda: self._addToQueue())
 
     download_now = QAction("Download Now")
+    download_now.setEnabled(has_selection)
     download_now.triggered.connect(lambda: self._downloadNowContextMenu())
+
+    details = QAction("View Details")
+    details.setEnabled(has_selection)
+    details.triggered.connect(self._showSelectedRomDetails)
     
-    menu.exec([add_to_queue, download_now], QCursor.pos(), parent=self.tw_romsList)
+    menu.exec([add_to_queue, download_now, details], QCursor.pos(), parent=self.tw_romsList)
