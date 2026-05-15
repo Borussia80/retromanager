@@ -152,6 +152,12 @@ class MainWindow(QMainWindow):
             _search_act = QAction(_search_icon, "", self.le_filter)
             _search_act.setEnabled(False)
             self.le_filter.addAction(_search_act, QLineEdit.ActionPosition.LeadingPosition)
+        self._completer = QCompleter([], self)
+        self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self._completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self._completer.setMaxVisibleItems(12)
+        self.le_filter.setCompleter(self._completer)
         filter_lay.addWidget(self.le_filter)
 
         self.pb_eur = QPushButton("Europa")
@@ -538,6 +544,13 @@ class MainWindow(QMainWindow):
         all_roms = list(self.platforms.getRoms(platform_name))
         self._current_platform_roms = all_roms
         self._current_platform_downloaded = downloaded_set
+
+        is_mame = platform_name == "Arcade - MAME"
+        if is_mame and self._mame_names:
+            completer_names = [self._mame_names.get(n, n) for n, _ in all_roms]
+        else:
+            completer_names = [n for n, _ in all_roms]
+        self._completer.setModel(QStringListModel(completer_names, self._completer))
 
         chunk = all_roms[:self._CHUNK_SIZE]
         for i, (rom_name, rom_data) in enumerate(chunk):
