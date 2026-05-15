@@ -1,3 +1,4 @@
+import threading
 import zipfile
 
 # Qt
@@ -132,16 +133,16 @@ class DownloadWorker(QObject):
     self.settings = settings
     self.platforms = platforms
     self.queue_items = queue_items
-    self._cancel_requested = False
+    self._cancel = threading.Event()
 
 
   def cancel(self):
-    self._cancel_requested = True
+    self._cancel.set()
 
 
   def run(self):
     for current_index, (platform, rom_name) in enumerate(self.queue_items, start=1):
-      if self._cancel_requested:
+      if self._cancel.is_set():
         self.cancelled.emit()
         break
       self.startedItem.emit(platform, rom_name, current_index, len(self.queue_items))
@@ -236,7 +237,7 @@ class DownloadWorker(QObject):
           for chunk in resp.iter_content(chunk_size=65536):
             if not chunk:
               continue
-            if self._cancel_requested:
+            if self._cancel.is_set():
               raise InterruptedError("Download cancelled by user")
             of.write(chunk)
             md5.update(chunk)
