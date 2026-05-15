@@ -151,6 +151,18 @@ class DownloadWorker(QObject):
       except InterruptedError:
         self.cancelled.emit()
         break
+      except PermissionError as e:
+        msg = f"Permissão negada: {e.filename or rom_name}"
+        self.failedItem.emit(platform, rom_name, msg)
+        break
+      except OSError as e:
+        import errno as _errno
+        if e.errno == _errno.ENOSPC:
+          msg = "Disco cheio — libere espaço e tente novamente."
+        else:
+          msg = str(e)
+        self.failedItem.emit(platform, rom_name, msg)
+        break
       except Exception as e:
         self.failedItem.emit(platform, rom_name, str(e))
         break
