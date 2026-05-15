@@ -38,7 +38,7 @@ class CacheGenerator():
 
 
     def _ProcessPart(self, part_id: str):
-      import requests
+      import os, requests
       url = f"https://archive.org/metadata/{part_id}"
       try:
         response = requests.get(url, timeout=30)
@@ -47,11 +47,13 @@ class CacheGenerator():
         if not part_files:
           DebugHelper.print(DebugType.TYPE_WARNING, f"No files found for <{part_id}>. The Archive item may be private or unavailable.", "CACHE")
         for file_data in part_files:
-          file_name = file_data.get('name', '')
-          if file_data.get('format', '').lower() == self.format and file_name.lower().endswith(f".{self.format}"):
-            rom_key = file_name[:-(len(self.format) + 1)]
+          file_path = file_data.get('name', '')
+          file_basename = os.path.basename(file_path)
+          if file_data.get('format', '').lower() == self.format and file_basename.lower().endswith(f".{self.format}"):
+            rom_key = file_basename[:-(len(self.format) + 1)]
             self.output_cache_json[self.id_name][rom_key] = {
               "source_id": part_id,
+              "file_path": file_path,
               "size": int(file_data.get('size', 0)),
               "md5": file_data.get('md5', ''),
               "crc32": file_data.get('crc32', ''),
@@ -158,7 +160,12 @@ class DownloadWorker(QObject):
 
     rom_data = self.platforms.getRom(platform, rom_name)
     rom_format = rom_data['format']
-    rom_url = f"https://archive.org/download/{rom_data['source_id']}/{quote(rom_name)}.{rom_format}"
+    file_path = rom_data.get('file_path')
+    if file_path:
+      encoded_path = quote(file_path, safe='/')
+    else:
+      encoded_path = f"{quote(rom_name)}.{rom_format}"
+    rom_url = f"https://archive.org/download/{rom_data['source_id']}/{encoded_path}"
     output_path = os.path.join(self.settings.get('download_path'), f"{rom_name}.{rom_format}")
     temp_path = f"{output_path}.part"
 

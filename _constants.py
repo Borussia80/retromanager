@@ -44,4 +44,10 @@ ARCHIVE_PLATFORMS_DATA = [
 
     # NEC — original ID still public (7z)
     [ 'NEC - PC Engine / TurboGrafx-16', '7z', 'nointro.tg-16' ],
+
+    # SNK — No-Intro style MVS romset (individual ZIPs, no subdirectory)
+    [ 'SNK - Neo Geo MVS', 'zip', 'neo-geo-mvs-romset' ],
+
+    # Arcade — full MAME merged set (individual ZIPs inside mame-merged/ subdirectory)
+    [ 'Arcade - MAME', 'zip', 'mame-merged' ],
 ]
