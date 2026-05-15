@@ -72,7 +72,7 @@ class SettingsHelper():
       with open(self.full_path, 'rb') as fp:
         temp_settings: dict = pickle.load(fp)
       self._fix(temp_settings)
-    except Exception as e:
+    except (pickle.UnpicklingError, OSError, EOFError, AttributeError) as e:
       DebugHelper.print(DebugType.TYPE_ERROR, f"Could not read settings: {list(e.args)}", "SETTINGS")
 
 

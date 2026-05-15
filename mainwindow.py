@@ -13,7 +13,10 @@ from _tools import Tools, DownloadWorker, HashCheckWorker
 from _debug import *
 from download_queue import DownloadQueue
 from download_panel import DownloadQueuePanel
-from platform_icons import PlatformItemWidget, FavoritesItemWidget, GameTitleDelegate, FormatBadgeDelegate
+from platform_icons import (
+    PlatformItemWidget, FavoritesItemWidget, GameTitleDelegate,
+    FormatBadgeDelegate, fmt_count,
+)
 from favorites_manager import FavoritesManager
 from error_dialog import DownloadErrorDialog, HashResultDialog
 from game_grid import GameGridWidget
@@ -21,7 +24,10 @@ from options import Options
 from about import About
 from retroarch_helper import RetroArchHelper
 from lutris_helper import LutrisHelper
-from integrations_panel import IntegrationsPanel
+from empty_state import EmptyState
+from rom_detail_panel import RomDetailPanel
+import library_service
+import mame_names as _mame_names
 
 
 class MainWindow(QMainWindow):
@@ -31,7 +37,12 @@ class MainWindow(QMainWindow):
         self.settings = settings
         self.updater = updater
         self.platforms = platforms
-        self.optionsDialog = Options(self, settings)
+
+        self._retroarch = RetroArchHelper()
+        self._lutris = LutrisHelper()
+        self._favorites = FavoritesManager()
+
+        self.optionsDialog = Options(self, settings, self._retroarch, self._lutris)
         self.aboutDialog = About(self)
         self.download_queue = DownloadQueue(self)
         self.download_thread = None
@@ -41,10 +52,11 @@ class MainWindow(QMainWindow):
         self.download_failed = False
         self._active_rom_name = None
         self.table_placeholder_active = False
-
-        self._retroarch = RetroArchHelper()
-        self._lutris = LutrisHelper()
-        self._favorites = FavoritesManager()
+        self._current_platform_roms: list = []
+        self._current_platform_downloaded: set = set()
+        self._loaded_count = 0
+        self._mame_names: dict[str, str] = {}
+        self._mame_names_loading = False
 
         self.filter_timer = QTimer(self)
         self.filter_timer.setSingleShot(True)
@@ -56,12 +68,17 @@ class MainWindow(QMainWindow):
         self._build_statusbar()
         self._connect_signals()
 
-        self.setWindowTitle(f"retromanager {self.updater.currentVersionString()}")
+        self.setWindowTitle(f"Retromanager {self.updater.currentVersionString()}")
         self.resize(1200, 680)
 
         self._checkUpdates(at_launch=True)
         self._loadPlatformsList()
-        self._showEmptyTableMessage("Selecione uma plataforma à esquerda para explorar.")
+        self._loadMameNamesAsync()
+        self._showTablePlaceholder(
+            "◉",
+            "Bem-vindo ao Retromanager",
+            "Escolha uma plataforma à esquerda para começar.",
+        )
         self._restoreQueueToPanel()
 
     # ──────────────────────────────────────────────
@@ -110,9 +127,6 @@ class MainWindow(QMainWindow):
         self.lw_platforms.setSpacing(0)
         sidebar_lay.addWidget(self.lw_platforms)
 
-        self._integrations_panel = IntegrationsPanel(self._retroarch, self._lutris)
-        sidebar_lay.addWidget(self._integrations_panel)
-
         self._splitter.addWidget(sidebar)
 
         # ── Middle: filter bar + game table ────────
@@ -130,14 +144,20 @@ class MainWindow(QMainWindow):
         filter_lay.setSpacing(8)
 
         self.le_filter = QLineEdit()
-        self.le_filter.setPlaceholderText("Buscar por título, região, versão, protótipo, beta…")
+        self.le_filter.setPlaceholderText("Buscar ROMs…")
         self.le_filter.setClearButtonEnabled(True)
+        self.le_filter.setMaxLength(100)
+        _search_icon = QIcon.fromTheme("edit-find")
+        if not _search_icon.isNull():
+            _search_act = QAction(_search_icon, "", self.le_filter)
+            _search_act.setEnabled(False)
+            self.le_filter.addAction(_search_act, QLineEdit.ActionPosition.LeadingPosition)
         filter_lay.addWidget(self.le_filter)
 
-        self.pb_eur = QPushButton("Europe")
+        self.pb_eur = QPushButton("Europa")
         self.pb_usa = QPushButton("USA")
-        self.pb_jpn = QPushButton("Japan")
-        self.pb_all = QPushButton("All")
+        self.pb_jpn = QPushButton("Japão")
+        self.pb_all = QPushButton("Todos")
         for btn in (self.pb_eur, self.pb_usa, self.pb_jpn, self.pb_all):
             btn.setCheckable(True)
             btn.setAutoExclusive(True)
@@ -146,23 +166,29 @@ class MainWindow(QMainWindow):
             filter_lay.addWidget(btn)
         self.pb_all.setChecked(True)
 
-        # Separator
-        sep = QLabel("|")
-        sep.setStyleSheet("color:#2e3a52;background:transparent;")
-        filter_lay.addWidget(sep)
-
-        # View toggle: List / Grid
-        self.pb_view_list = QPushButton("≡")
-        self.pb_view_grid = QPushButton("⊞")
+        # View toggle: List / Grid (no separator per G·01)
+        self.pb_view_list = QPushButton("☰")
+        self.pb_view_grid = QPushButton("▦")
+        _view_toggle_style = """
+            QPushButton {
+                background:transparent;border:1px solid #2e3a52;border-radius:5px;
+                color:#6b7a99;font-size:13px;
+            }
+            QPushButton:checked {
+                background:#4f8ef7;border-color:#4f8ef7;color:#fff;
+            }
+            QPushButton:hover:!checked { background:#1e2535;color:#a9b4cc; }
+        """
         for btn in (self.pb_view_list, self.pb_view_grid):
             btn.setCheckable(True)
             btn.setAutoExclusive(True)
             btn.setFixedSize(28, 28)
             btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            btn.setStyleSheet(_view_toggle_style)
             filter_lay.addWidget(btn)
         self.pb_view_list.setChecked(True)
-        self.pb_view_list.setToolTip("Vista em lista")
-        self.pb_view_grid.setToolTip("Vista em grade")
+        self.pb_view_list.setToolTip("Vista em lista (Ctrl+1)")
+        self.pb_view_grid.setToolTip("Vista em grade (Ctrl+2)")
 
         middle_lay.addWidget(filter_bar)
 
@@ -186,22 +212,27 @@ class MainWindow(QMainWindow):
             self.tw_romsList.setHorizontalHeaderItem(i, QTableWidgetItem(h))
 
         hh = self.tw_romsList.horizontalHeader()
+        hh.setMinimumSectionSize(80)
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
         hh.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-        hh.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        hh.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        hh.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        self.tw_romsList.setColumnWidth(2, 48)
+        hh.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        hh.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        hh.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+        self.tw_romsList.setColumnWidth(1, 120)
+        self.tw_romsList.setColumnWidth(2, 70)
+        self.tw_romsList.setColumnWidth(3, 260)
+        self.tw_romsList.setColumnWidth(4, 100)
+        self.tw_romsList.setColumnWidth(5, 260)
+
+        # Column 2 (Formato) is permanently hidden — format is shown as suffix in column 1
+        self.tw_romsList.setColumnHidden(2, True)
 
         self._toggleTechnicalColumns(False)
 
         # Game title delegate for badges
         self._title_delegate = GameTitleDelegate(self.tw_romsList)
         self.tw_romsList.setItemDelegateForColumn(0, self._title_delegate)
-
-        self._format_delegate = FormatBadgeDelegate(self.tw_romsList)
-        self.tw_romsList.setItemDelegateForColumn(2, self._format_delegate)
 
         # Grid view
         self.game_grid = GameGridWidget()
@@ -210,18 +241,100 @@ class MainWindow(QMainWindow):
         self._view_stack = QStackedWidget()
         self._view_stack.addWidget(self.tw_romsList)
         self._view_stack.addWidget(self.game_grid)
-        middle_lay.addWidget(self._view_stack)
+
+        # Chunk banner — shown when only first 500 of N ROMs are loaded
+        self._chunk_banner = QWidget()
+        self._chunk_banner.setFixedHeight(34)
+        self._chunk_banner.setStyleSheet(
+            "background:#1c2437;border-bottom:1px solid #2e3a52;"
+        )
+        _cb_lay = QHBoxLayout(self._chunk_banner)
+        _cb_lay.setContentsMargins(12, 0, 8, 0)
+        _cb_lay.setSpacing(6)
+        self._chunk_lbl = QLabel()
+        self._chunk_lbl.setStyleSheet(
+            "font-size:11px;color:#6b7a99;background:transparent;border:none;"
+        )
+        self._chunk_btn = QPushButton("Carregar todos")
+        self._chunk_btn.setFixedHeight(22)
+        self._chunk_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self._chunk_btn.setStyleSheet("""
+            QPushButton {
+                background:transparent;border:1px solid #2e3a52;border-radius:4px;
+                padding:2px 10px;color:#a9b4cc;font-size:11px;
+            }
+            QPushButton:hover { background:#2e3a52;color:#e8ecf5; }
+            QPushButton:pressed { background:#252d40; }
+        """)
+        self._chunk_btn.clicked.connect(self._loadAllRoms)
+        _cb_lay.addWidget(self._chunk_lbl)
+        _cb_lay.addStretch()
+        _cb_lay.addWidget(self._chunk_btn)
+        self._chunk_banner.hide()
+        middle_lay.addWidget(self._chunk_banner)
+
+        # Content stack: index 0 = _view_stack (data), index 1 = EmptyState
+        self._content_stack = QStackedWidget()
+        self._content_stack.addWidget(self._view_stack)
+        self._empty_state_w = EmptyState()
+        self._content_stack.addWidget(self._empty_state_w)
+        middle_lay.addWidget(self._content_stack)
 
         self._splitter.addWidget(middle)
 
-        # ── Right: download panel ────────────────
+        # ── Right: detail + download panel (tabbed) ──
+        right_container = QWidget()
+        right_container.setStyleSheet(
+            "QWidget { background:#161b27; border-left:1px solid #2e3a52; }"
+        )
+        right_container.setMinimumWidth(200)
+        right_container.setMaximumWidth(320)
+        right_lay = QVBoxLayout(right_container)
+        right_lay.setContentsMargins(0, 0, 0, 0)
+        right_lay.setSpacing(0)
+
+        right_hdr = QWidget()
+        right_hdr.setFixedHeight(40)
+        right_hdr.setStyleSheet(
+            "background:#161b27;border-bottom:1px solid #2e3a52;"
+        )
+        right_hdr_lay = QHBoxLayout(right_hdr)
+        right_hdr_lay.setContentsMargins(8, 0, 8, 0)
+        right_hdr_lay.setSpacing(4)
+        _tab_style = """
+            QPushButton {
+                background:transparent;border:1px solid transparent;border-radius:5px;
+                color:#6b7a99;font-size:11px;font-weight:600;padding:0 10px;
+            }
+            QPushButton:checked { background:#4f8ef7;border-color:#4f8ef7;color:#fff; }
+            QPushButton:hover:!checked { background:#1e2535;color:#a9b4cc; }
+        """
+        self._tab_detail = QPushButton("Detalhes")
+        self._tab_queue  = QPushButton("Fila")
+        for _tb in (self._tab_detail, self._tab_queue):
+            _tb.setCheckable(True)
+            _tb.setAutoExclusive(True)
+            _tb.setFixedHeight(26)
+            _tb.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            _tb.setStyleSheet(_tab_style)
+            right_hdr_lay.addWidget(_tb)
+        self._tab_detail.setChecked(True)
+        right_hdr_lay.addStretch()
+        right_lay.addWidget(right_hdr)
+
+        self._right_stack = QStackedWidget()
+        self._detail_panel = RomDetailPanel()
+        self._right_stack.addWidget(self._detail_panel)   # index 0
         self.download_panel = DownloadQueuePanel()
-        self._splitter.addWidget(self.download_panel)
+        self._right_stack.addWidget(self.download_panel)  # index 1
+        right_lay.addWidget(self._right_stack)
+
+        self._splitter.addWidget(right_container)
 
         self._splitter.setStretchFactor(0, 0)
         self._splitter.setStretchFactor(1, 1)
         self._splitter.setStretchFactor(2, 0)
-        self._splitter.setSizes([230, 750, 230])
+        self._splitter.setSizes([230, 750, 260])
 
     def _build_menu(self):
         menubar = self.menuBar()
@@ -273,12 +386,25 @@ class MainWindow(QMainWindow):
         self.statusbar_update = QLabel()
         self.statusBar().addPermanentWidget(self.statusbar_update)
 
+        # Integrations indicator — shown only when at least one is detected
+        self._statusbar_integrations = QLabel()
+        self._statusbar_integrations.setStyleSheet(
+            "font-size:10px;color:#5a9060;background:transparent;padding:0 6px;"
+        )
+        self._statusbar_integrations.setToolTip("Abrir Configurações → Integrações")
+        self._statusbar_integrations.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self._statusbar_integrations.mousePressEvent = lambda _: self.optionsDialog.show()
+        self.statusBar().addPermanentWidget(self._statusbar_integrations)
+        self._refresh_integrations_statusbar()
+
     def _connect_signals(self):
         self.lw_platforms.itemClicked.connect(self._onListwidgetSelectionChanged)
+        self.lw_platforms.currentItemChanged.connect(self._onPlatformCurrentItemChanged)
         self.tw_romsList.customContextMenuRequested.connect(self._onRomslistRightClick)
         self.tw_romsList.itemDoubleClicked.connect(self._downloadNowContextMenu)
         self.le_filter.textChanged.connect(self._filterTableWidget)
         self.download_panel.downloadRequested.connect(self._launchRomsDownload)
+        self.download_panel.downloadPauseRequested.connect(self._cancelDownload)
         self.pb_view_list.toggled.connect(lambda on: self._switch_view("list") if on else None)
         self.pb_view_grid.toggled.connect(lambda on: self._switch_view("grid") if on else None)
         self.game_grid.romDoubleClicked.connect(self._downloadRomByName)
@@ -289,6 +415,27 @@ class MainWindow(QMainWindow):
         self.download_queue.updatedListEvent = self._updateStatusbarQueueText
         self.download_queue.downloadClickedEvent = self._launchRomsDownload
 
+        self.tw_romsList.itemSelectionChanged.connect(self._onRomSelectionChanged)
+        self._tab_detail.toggled.connect(
+            lambda on: self._right_stack.setCurrentIndex(0) if on else None
+        )
+        self._tab_queue.toggled.connect(
+            lambda on: self._right_stack.setCurrentIndex(1) if on else None
+        )
+        self._detail_panel.downloadRequested.connect(self._onDetailDownload)
+        self._detail_panel.favoriteToggled.connect(self._onDetailFavoriteToggled)
+
+        QShortcut(QKeySequence("Ctrl+1"), self).activated.connect(
+            lambda: (self.pb_view_list.setChecked(True), self._switch_view("list"))
+        )
+        QShortcut(QKeySequence("Ctrl+2"), self).activated.connect(
+            lambda: (self.pb_view_grid.setChecked(True), self._switch_view("grid"))
+        )
+        QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(self.le_filter.setFocus)
+        QShortcut(QKeySequence("Ctrl+P"), self).activated.connect(
+            self.download_panel._btn_pause.click
+        )
+
     # ──────────────────────────────────────────────
     # Platform list
     # ──────────────────────────────────────────────
@@ -297,7 +444,7 @@ class MainWindow(QMainWindow):
         # Favorites pseudo-platform at the top
         fav_item = QListWidgetItem(self.lw_platforms)
         fav_item.setData(Qt.ItemDataRole.UserRole, _FAVORITES_KEY)
-        fav_item.setSizeHint(QSize(0, 52))
+        fav_item.setSizeHint(QSize(0, 44))
         self._fav_widget = FavoritesItemWidget(self._favorites.count())
         self.lw_platforms.setItemWidget(fav_item, self._fav_widget)
 
@@ -310,15 +457,58 @@ class MainWindow(QMainWindow):
                 available += 1
             item = QListWidgetItem(self.lw_platforms)
             item.setData(Qt.ItemDataRole.UserRole, name)
-            item.setSizeHint(QSize(0, 52))
+            item.setSizeHint(QSize(0, 44))
             if count == 0:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             widget = PlatformItemWidget(name, count)
             self.lw_platforms.setItemWidget(item, widget)
 
         self.statusbar_catalog.setText(
-            f"{available}/{self.platforms.platformsCount()} plataformas  ·  {total:,} itens"
+            f"{available}/{self.platforms.platformsCount()} plataformas  ·  {fmt_count(total)}"
         )
+
+    def _loadMameNamesAsync(self):
+        """Load MAME name cache in a background thread; harmless if XML not present."""
+        self._mame_names_loading = True
+
+        class _Worker(QRunnable):
+            def __init__(self, callback):
+                super().__init__()
+                self._cb = callback
+
+            def run(self):
+                names = _mame_names.load()
+                QMetaObject.invokeMethod(
+                    self._cb, "_onMameNamesLoaded",
+                    Qt.ConnectionType.QueuedConnection,
+                    Q_ARG(object, names),
+                )
+
+        # QRunnable with invokeMethod on a plain QObject doesn't work cleanly in PyQt6;
+        # use a simple QThread instead.
+        self._mame_thread = QThread(self)
+
+        class _Loader(QObject):
+            done = pyqtSignal(dict)
+
+            def run(self):
+                self.done.emit(_mame_names.load())
+
+        self._mame_loader = _Loader()
+        self._mame_loader.moveToThread(self._mame_thread)
+        self._mame_thread.started.connect(self._mame_loader.run)
+        self._mame_loader.done.connect(self._onMameNamesLoaded)
+        self._mame_loader.done.connect(self._mame_thread.quit)
+        self._mame_thread.finished.connect(self._mame_thread.deleteLater)
+        self._mame_thread.start()
+
+    def _onMameNamesLoaded(self, names: dict):
+        self._mame_names = names
+        self._mame_names_loading = False
+        if names:
+            self.statusBar().showMessage(
+                f"Nomes MAME: {len(names):,} itens carregados.".replace(",", "."), 4000
+            )
 
     # ──────────────────────────────────────────────
     # Game table
@@ -328,6 +518,8 @@ class MainWindow(QMainWindow):
         for col in [3, 4, 5]:
             self.tw_romsList.setColumnHidden(col, not checked)
 
+    _CHUNK_SIZE = 500
+
     def _onListwidgetSelectionChanged(self, item: QListWidgetItem):
         platform_name = item.data(Qt.ItemDataRole.UserRole) or item.text()
 
@@ -336,101 +528,133 @@ class MainWindow(QMainWindow):
             return
 
         self.table_placeholder_active = False
+        self._hideEmptyState()
+        self._hide_chunk_banner()
         self.tw_romsList.setSortingEnabled(False)
         self.tw_romsList.setRowCount(0)
 
-        downloaded_set = self._scan_downloaded(platform_name)
-        rom_names = []
-        for i, (rom_name, rom_data) in enumerate(self.platforms.getRoms(platform_name)):
-            rom_names.append(rom_name)
-            rom_name_item = QTableWidgetItem(rom_name)
-            rom_name_item.setToolTip(self._buildRomSummary(platform_name, rom_name, rom_data))
-            rom_name_item.setData(Qt.ItemDataRole.UserRole,     platform_name)
-            rom_name_item.setData(Qt.ItemDataRole.UserRole + 1, rom_name in downloaded_set)
-            rom_name_item.setData(Qt.ItemDataRole.UserRole + 2,
-                                  self._favorites.is_favorite(platform_name, rom_name))
+        downloaded_set = library_service.scan_downloaded(self.settings, platform_name)
+        all_roms = list(self.platforms.getRoms(platform_name))
+        self._current_platform_roms = all_roms
+        self._current_platform_downloaded = downloaded_set
 
-            rom_size_item = QTableWidgetItem(Tools.convertSizeToReadable(rom_data['size']))
-            rom_size_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            rom_format_item = QTableWidgetItem(rom_data['format'].upper())
-            rom_format_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            rom_format_item.setForeground(QColor("#6b7a99"))
-
-            rom_md5_item  = QTableWidgetItem(rom_data['md5'])
-            rom_crc32_item = QTableWidgetItem(rom_data['crc32'].upper())
-            rom_sha1_item = QTableWidgetItem(rom_data['sha1'])
-            for it in (rom_md5_item, rom_crc32_item, rom_sha1_item):
-                it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                it.setForeground(QColor("#6b7a99"))
-
-            self.tw_romsList.insertRow(i)
-            self.tw_romsList.setItem(i, 0, rom_name_item)
-            self.tw_romsList.setItem(i, 1, rom_size_item)
-            self.tw_romsList.setItem(i, 2, rom_format_item)
-            self.tw_romsList.setItem(i, 3, rom_md5_item)
-            self.tw_romsList.setItem(i, 4, rom_crc32_item)
-            self.tw_romsList.setItem(i, 5, rom_sha1_item)
+        chunk = all_roms[:self._CHUNK_SIZE]
+        for i, (rom_name, rom_data) in enumerate(chunk):
+            self._insert_rom_row(i, platform_name, rom_name, rom_data, downloaded_set)
+        self._loaded_count = len(chunk)
 
         self.tw_romsList.setSortingEnabled(True)
         self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
+
+        total = len(all_roms)
+        if total > self._CHUNK_SIZE:
+            self._show_chunk_banner(self._CHUNK_SIZE, total)
+
         self._applyTableFilter()
 
         # Populate grid with sorted names
-        self.game_grid.load(platform_name, sorted(rom_names), downloaded_set)
+        self.game_grid.load(platform_name, sorted(r for r, _ in all_roms), downloaded_set)
 
-        self.statusBar().showMessage(
-            f"{platform_name}: {len(rom_names):,} itens", 5000
-        )
+        self.statusBar().showMessage(f"{platform_name}: {fmt_count(total)}", 5000)
+
+    def _insert_rom_row(self, row: int, platform: str, rom_name: str,
+                        rom_data, downloaded_set: set):
+        # For MAME, show the friendly title from the name cache when available
+        is_mame = platform == "Arcade - MAME"
+        friendly = self._mame_names.get(rom_name) if is_mame and self._mame_names else None
+        display_name = friendly if friendly else rom_name
+
+        rom_name_item = QTableWidgetItem(display_name)
+        tooltip = library_service.build_rom_summary(platform, display_name, rom_data, Tools.convertSizeToReadable)
+        if friendly:
+            tooltip = f"{rom_name}\n{tooltip}"  # prepend shortname for MAME
+        rom_name_item.setToolTip(tooltip)
+        rom_name_item.setData(Qt.ItemDataRole.UserRole,     platform)
+        rom_name_item.setData(Qt.ItemDataRole.UserRole + 1, rom_name in downloaded_set)
+        rom_name_item.setData(Qt.ItemDataRole.UserRole + 2,
+                              self._favorites.is_favorite(platform, rom_name))
+        rom_name_item.setData(Qt.ItemDataRole.UserRole + 3, rom_name)  # always shortname
+
+        size_str = Tools.convertSizeToReadable(rom_data.size)
+        fmt_str = rom_data.format.upper()
+        rom_size_item = QTableWidgetItem(f"{size_str} · {fmt_str}")
+        rom_size_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        rom_format_item = QTableWidgetItem(fmt_str)  # hidden column 2 — kept for data access
+        rom_format_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        rom_md5_item   = QTableWidgetItem(rom_data.md5)
+        rom_crc32_item = QTableWidgetItem(rom_data.crc32.upper())
+        rom_sha1_item  = QTableWidgetItem(rom_data.sha1)
+        for it in (rom_md5_item, rom_crc32_item, rom_sha1_item):
+            it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            it.setForeground(QColor("#6b7a99"))
+
+        self.tw_romsList.insertRow(row)
+        self.tw_romsList.setItem(row, 0, rom_name_item)
+        self.tw_romsList.setItem(row, 1, rom_size_item)
+        self.tw_romsList.setItem(row, 2, rom_format_item)
+        self.tw_romsList.setItem(row, 3, rom_md5_item)
+        self.tw_romsList.setItem(row, 4, rom_crc32_item)
+        self.tw_romsList.setItem(row, 5, rom_sha1_item)
+
+    def _loadAllRoms(self):
+        platform = self._current_platform()
+        if not platform or platform == _FAVORITES_KEY or not self._current_platform_roms:
+            return
+        downloaded_set = self._current_platform_downloaded
+        remaining = self._current_platform_roms[self._loaded_count:]
+
+        self.tw_romsList.setSortingEnabled(False)
+        for j, (rom_name, rom_data) in enumerate(remaining, start=self._loaded_count):
+            self._insert_rom_row(j, platform, rom_name, rom_data, downloaded_set)
+        self._loaded_count = len(self._current_platform_roms)
+
+        self.tw_romsList.setSortingEnabled(True)
+        self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
+        self._hide_chunk_banner()
+        self._applyTableFilter()
+
+    def _onPlatformCurrentItemChanged(self, current, previous):
+        for item, selected in ((previous, False), (current, True)):
+            if item:
+                w = self.lw_platforms.itemWidget(item)
+                if w and hasattr(w, 'set_selected'):
+                    w.set_selected(selected)
 
     def _loadFavoritesView(self):
         self.table_placeholder_active = False
+        self._hide_chunk_banner()
         self.tw_romsList.setSortingEnabled(False)
         self.tw_romsList.setRowCount(0)
 
         favs = self._favorites.all()
-        downloaded_set = self._scan_downloaded()
+        downloaded_set = library_service.scan_downloaded(self.settings)
 
         if not favs:
-            self._showEmptyTableMessage("Nenhum favorito ainda. Clique com o botão direito em um jogo e escolha Favoritar.")
+            self._showTablePlaceholder(
+                "☆",
+                "Sem favoritos ainda",
+                "Clique com o botão direito em um jogo e escolha Favoritar.",
+            )
             return
 
-        for i, (platform, rom_name) in enumerate(favs):
+        row_idx = 0
+        for platform, rom_name in favs:
             rom_data = self.platforms.getRom(platform, rom_name)
             if not rom_data:
                 continue
-
-            rom_name_item = QTableWidgetItem(rom_name)
-            rom_name_item.setData(Qt.ItemDataRole.UserRole,     platform)
-            rom_name_item.setData(Qt.ItemDataRole.UserRole + 1, rom_name in downloaded_set)
-            rom_name_item.setData(Qt.ItemDataRole.UserRole + 2, True)
-
-            rom_size_item = QTableWidgetItem(Tools.convertSizeToReadable(rom_data['size']))
-            rom_size_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            rom_format_item = QTableWidgetItem(rom_data['format'].upper())
-            rom_format_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            rom_format_item.setForeground(QColor("#6b7a99"))
-
-            rom_md5_item   = QTableWidgetItem(rom_data['md5'])
-            rom_crc32_item = QTableWidgetItem(rom_data['crc32'].upper())
-            rom_sha1_item  = QTableWidgetItem(rom_data['sha1'])
-            for it in (rom_md5_item, rom_crc32_item, rom_sha1_item):
-                it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                it.setForeground(QColor("#6b7a99"))
-
-            self.tw_romsList.insertRow(i)
-            self.tw_romsList.setItem(i, 0, rom_name_item)
-            self.tw_romsList.setItem(i, 1, rom_size_item)
-            self.tw_romsList.setItem(i, 2, rom_format_item)
-            self.tw_romsList.setItem(i, 3, rom_md5_item)
-            self.tw_romsList.setItem(i, 4, rom_crc32_item)
-            self.tw_romsList.setItem(i, 5, rom_sha1_item)
+            self._insert_rom_row(row_idx, platform, rom_name, rom_data, downloaded_set)
+            # Mark as favorite (overrides the is_favorite lookup in _insert_rom_row)
+            it = self.tw_romsList.item(row_idx, 0)
+            if it:
+                it.setData(Qt.ItemDataRole.UserRole + 2, True)
+            row_idx += 1
 
         self.tw_romsList.setSortingEnabled(True)
         self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
         self._applyTableFilter()
-        self.statusBar().showMessage(f"Favoritos: {len(favs):,} itens", 5000)
+        self.statusBar().showMessage(f"Favoritos: {fmt_count(len(favs))}", 5000)
 
     def _toggleFavorite(self, rom_name: str | None):
         if not rom_name:
@@ -461,41 +685,46 @@ class MainWindow(QMainWindow):
                if now_fav else f"'{rom_name}' removido dos favoritos.")
         self.statusBar().showMessage(msg, 3000)
 
+    def _refresh_integrations_statusbar(self):
+        parts = []
+        if self._retroarch.detected:
+            parts.append("RetroArch ✓")
+        if self._lutris.detected:
+            parts.append("Lutris ✓")
+        self._statusbar_integrations.setText("  ·  ".join(parts))
+        self._statusbar_integrations.setVisible(bool(parts))
+
     def _restoreQueueToPanel(self):
         for _, rom_name in self.download_queue.items():
             self.download_panel.add_item(rom_name)
         self._updateStatusbarQueueText()
 
-    def _scan_downloaded(self, platform: str | None = None) -> set[str]:
-        """Return stems of files present in the download dir, platform subdir, and import paths."""
-        base = self.settings.get('download_path')
-        dirs_to_scan = [base]
-        if platform:
-            dirs_to_scan.append(os.path.join(base, platform))
-        for imp in self.settings.get('import_paths'):
-            dirs_to_scan.append(imp)
-            if platform:
-                dirs_to_scan.append(os.path.join(imp, platform))
+    def _showEmptyState(self, icon: str, title: str, description: str,
+                        action_label: str = None, action_callback=None):
+        self._empty_state_w.set_content(icon, title, description, action_label, action_callback)
+        self._content_stack.setCurrentIndex(1)
 
-        stems: set[str] = set()
-        for d in dirs_to_scan:
-            try:
-                for f in os.listdir(d):
-                    if os.path.isfile(os.path.join(d, f)):
-                        stems.add(os.path.splitext(f)[0])
-            except OSError:
-                pass
-        return stems
+    def _hideEmptyState(self):
+        self._content_stack.setCurrentIndex(0)
 
-    def _showEmptyTableMessage(self, message: str):
+    def _showTablePlaceholder(self, icon: str, title: str, description: str,
+                              action_label: str = None, action_callback=None):
+        """Show EmptyState and mark table as placeholder (no real row data)."""
         self.table_placeholder_active = True
-        self.tw_romsList.setRowCount(1)
-        self.tw_romsList.setSpan(0, 0, 1, self.tw_romsList.columnCount())
-        item = QTableWidgetItem(message)
-        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        item.setFlags(Qt.ItemFlag.NoItemFlags)
-        item.setForeground(QColor("#3d4f6e"))
-        self.tw_romsList.setItem(0, 0, item)
+        self.tw_romsList.setRowCount(0)
+        self._showEmptyState(icon, title, description, action_label, action_callback)
+        self.statusBar().clearMessage()
+
+    def _show_chunk_banner(self, shown: int, total: int):
+        shown_fmt = f"{shown:,}".replace(",", ".")
+        total_fmt = f"{total:,}".replace(",", ".")
+        self._chunk_lbl.setText(
+            f"ⓘ  Mostrando {shown_fmt} de {total_fmt} ROMs."
+        )
+        self._chunk_banner.show()
+
+    def _hide_chunk_banner(self):
+        self._chunk_banner.hide()
 
     def _filterTableWidget(self):
         self.filter_timer.start()
@@ -506,14 +735,62 @@ class MainWindow(QMainWindow):
         keywords = self.le_filter.text().strip().lower().split()
         region = self._selectedRegion()
         visible = 0
-        for i in range(self.tw_romsList.rowCount()):
-            name = self.tw_romsList.item(i, 0).text()
-            show = self._romMatchesFilters(name, keywords, region)
-            self.tw_romsList.setRowHidden(i, not show)
-            if show:
-                visible += 1
+        self.tw_romsList.setUpdatesEnabled(False)
+        try:
+            for i in range(self.tw_romsList.rowCount()):
+                it = self.tw_romsList.item(i, 0)
+                name = it.text()
+                shortname = it.data(Qt.ItemDataRole.UserRole + 3) or ""
+                show = library_service.rom_matches_filters(name, keywords, region, shortname)
+                self.tw_romsList.setRowHidden(i, not show)
+                if show:
+                    visible += 1
+        finally:
+            self.tw_romsList.setUpdatesEnabled(True)
         self.game_grid.apply_filter(keywords, region)
-        self.statusBar().showMessage(f"{visible:,} ítens visíveis", 3000)
+
+        if visible == 0 and self.tw_romsList.rowCount() > 0:
+            self._showFilterEmptyState(region, keywords)
+        else:
+            self._hideEmptyState()
+            self.statusBar().showMessage(f"{fmt_count(visible)} visíveis", 3000)
+
+    _REGION_DISPLAY = {"Europe": "Europa", "USA": "USA", "Japan": "Japão"}
+
+    def _showFilterEmptyState(self, region: str | None, keywords: list[str]):
+        platform = self._current_platform() or "esta plataforma"
+        if region:
+            short = platform.split(" - ")[-1] if " - " in platform else platform
+            is_mame = "MAME" in platform
+            desc = (
+                "Os ROMs do MAME raramente carregam tag de região. "
+                "Tente outra plataforma ou remova o filtro."
+            ) if is_mame else (
+                "Nenhum ROM desta plataforma tem essa tag de região. "
+                "Tente outra plataforma ou remova o filtro."
+            )
+            region_lbl = self._REGION_DISPLAY.get(region, region)
+            self._showEmptyState(
+                "⊘",
+                f"Nenhum ROM com tag {region_lbl} em {short}",
+                desc,
+                "Mostrar todas as regiões",
+                self._clearRegionFilter,
+            )
+        else:
+            self._showEmptyState(
+                "⊘",
+                "Nada encontrado",
+                "Tente outros termos ou limpe a busca.",
+                "Limpar busca",
+                self.le_filter.clear,
+            )
+
+    def _clearRegionFilter(self):
+        self.pb_all.blockSignals(True)
+        self.pb_all.setChecked(True)
+        self.pb_all.blockSignals(False)
+        self._applyTableFilter()
 
     def _selectedRegion(self):
         if self.pb_eur.isChecked(): return "Europe"
@@ -521,23 +798,13 @@ class MainWindow(QMainWindow):
         if self.pb_jpn.isChecked(): return "Japan"
         return None
 
-    def _romMatchesFilters(self, rom_name: str, keywords: list[str], region: str | None) -> bool:
-        target = rom_name.lower()
-        if region and f"({region})".lower() not in target:
-            return False
-        return all(kw in target for kw in keywords)
-
-    def _buildRomSummary(self, platform_name: str, rom_name: str, rom_data: dict) -> str:
-        import re
-        tags = re.findall(r'\(([^)]+)\)', rom_name)
-        tags_text = ", ".join(tags) if tags else "—"
-        return (
-            f"{rom_name}\n"
-            f"Plataforma: {platform_name}\n"
-            f"Tags: {tags_text}\n"
-            f"Tamanho: {Tools.convertSizeToReadable(rom_data['size'])}\n"
-            f"Formato: {rom_data['format']}"
-        )
+    def _row_shortname(self, row: int) -> str:
+        """Return the catalogue key (shortname) for a table row, works for MAME and consoles."""
+        it = self.tw_romsList.item(row, 0)
+        if not it:
+            return ""
+        stored = it.data(Qt.ItemDataRole.UserRole + 3)
+        return stored if stored else it.text()
 
     def _selectedRomContext(self):
         selected = self.tw_romsList.selectionModel().selectedRows()
@@ -545,7 +812,7 @@ class MainWindow(QMainWindow):
             return None
         row = selected[0].row()
         platform = self.lw_platforms.selectedItems()[0].data(Qt.ItemDataRole.UserRole)
-        rom_name = self.tw_romsList.item(row, 0).text()
+        rom_name = self._row_shortname(row)
         return platform, rom_name, self.platforms.getRom(platform, rom_name)
 
     def _showSelectedRomDetails(self, *args):
@@ -556,13 +823,58 @@ class MainWindow(QMainWindow):
         details = (
             f"<b>{rom_name}</b><br><br>"
             f"<b>Plataforma:</b> {platform}<br>"
-            f"<b>Tamanho:</b> {Tools.convertSizeToReadable(rom_data['size'])}<br>"
-            f"<b>Formato:</b> {rom_data['format']}<br><br>"
-            f"<b>MD5:</b> {rom_data['md5']}<br>"
-            f"<b>CRC32:</b> {rom_data['crc32'].upper()}<br>"
-            f"<b>SHA1:</b> {rom_data['sha1']}"
+            f"<b>Tamanho:</b> {Tools.convertSizeToReadable(rom_data.size)}<br>"
+            f"<b>Formato:</b> {rom_data.format}<br><br>"
+            f"<b>MD5:</b> {rom_data.md5}<br>"
+            f"<b>CRC32:</b> {rom_data.crc32.upper()}<br>"
+            f"<b>SHA1:</b> {rom_data.sha1}"
         )
         QMessageBox.information(self, "Detalhes do jogo", details)
+
+    def _onRomSelectionChanged(self):
+        rows = self.tw_romsList.selectionModel().selectedRows()
+        if not rows:
+            self._detail_panel.clear()
+            return
+        row = rows[0].row()
+        it = self.tw_romsList.item(row, 0)
+        if not it:
+            self._detail_panel.clear()
+            return
+        platform = it.data(Qt.ItemDataRole.UserRole) or ""
+        rom_name = self._row_shortname(row)
+        display_name = it.text()
+        is_fav = bool(it.data(Qt.ItemDataRole.UserRole + 2))
+        rom_data = self.platforms.getRom(platform, rom_name) if platform else None
+        if not rom_data:
+            self._detail_panel.clear()
+            return
+        self._detail_panel.show_rom(platform, rom_name, display_name, rom_data, is_fav)
+
+    def _onDetailDownload(self, platform: str, rom_name: str):
+        added = self.download_queue.add(platform, [rom_name])
+        if added:
+            self.download_panel.add_item(rom_name)
+        self._updateStatusbarQueueText()
+        self._launchRomsDownload()
+
+    def _onDetailFavoriteToggled(self, platform: str, rom_name: str):
+        now_fav = self._favorites.toggle(platform, rom_name)
+        for i in range(self.tw_romsList.rowCount()):
+            it = self.tw_romsList.item(i, 0)
+            if it and (it.data(Qt.ItemDataRole.UserRole + 3) or it.text()) == rom_name:
+                it.setData(Qt.ItemDataRole.UserRole + 2, now_fav)
+        self.tw_romsList.viewport().update()
+        if hasattr(self, '_fav_widget'):
+            self._fav_widget.update_count(self._favorites.count())
+        self._detail_panel.sync_fav(now_fav)
+        msg = (f"'{rom_name}' adicionado aos favoritos."
+               if now_fav else f"'{rom_name}' removido dos favoritos.")
+        self.statusBar().showMessage(msg, 3000)
+
+    def _update_queue_tab_label(self):
+        count = self.download_queue.getTotalCount()
+        self._tab_queue.setText(f"Fila  {count}" if count > 0 else "Fila")
 
     def _onRomslistRightClick(self, point: QPoint):
         if self.table_placeholder_active:
@@ -580,7 +892,7 @@ class MainWindow(QMainWindow):
             row = selected_rows[0].row()
             it = self.tw_romsList.item(row, 0)
             if it:
-                rom_name = it.text()
+                rom_name = self._row_shortname(row)
                 is_downloaded = bool(it.data(Qt.ItemDataRole.UserRole + 1))
 
         act_queue = QAction("Adicionar à fila", self)
@@ -669,38 +981,6 @@ class MainWindow(QMainWindow):
     # RetroArch / Lutris integration
     # ──────────────────────────────────────────────
 
-    def _find_rom_file(self, rom_name: str) -> str | None:
-        """Find a downloaded ROM file by stem, checking platform subdir, base dir, and import paths."""
-        base = self.settings.get('download_path')
-        platform = self._current_platform()
-        dirs = []
-        if platform:
-            dirs.append(os.path.join(base, platform))
-        dirs.append(base)
-        for imp in self.settings.get('import_paths'):
-            if platform:
-                dirs.append(os.path.join(imp, platform))
-            dirs.append(imp)
-
-        for d in dirs:
-            try:
-                entries = os.listdir(d)
-            except OSError:
-                continue
-            for f in entries:
-                stem, ext = os.path.splitext(f)
-                if stem == rom_name and ext.lower() not in ('.zip', '.7z', '.part'):
-                    full = os.path.join(d, f)
-                    if os.path.isfile(full):
-                        return full
-            for f in entries:
-                stem, ext = os.path.splitext(f)
-                if stem == rom_name and ext.lower() in ('.zip', '.7z'):
-                    full = os.path.join(d, f)
-                    if os.path.isfile(full):
-                        return full
-        return None
-
     def _current_platform(self) -> str | None:
         sel = self.lw_platforms.selectedItems()
         if not sel:
@@ -720,7 +1000,7 @@ class MainWindow(QMainWindow):
         platform = self._current_platform()
         if not platform:
             return
-        rom_path = self._find_rom_file(rom_name)
+        rom_path = library_service.find_rom_file(self.settings, rom_name, self._current_platform())
         if not rom_path:
             QMessageBox.warning(
                 self, "Arquivo não encontrado",
@@ -737,7 +1017,7 @@ class MainWindow(QMainWindow):
         platform = self._current_platform()
         if not platform:
             return
-        rom_path = self._find_rom_file(rom_name)
+        rom_path = library_service.find_rom_file(self.settings, rom_name, self._current_platform())
         if not rom_path:
             QMessageBox.warning(
                 self, "Arquivo não encontrado",
@@ -745,7 +1025,8 @@ class MainWindow(QMainWindow):
             )
             return
         if self._retroarch.add_to_playlist(platform, rom_name, rom_path):
-            self._integrations_panel.refresh(self._retroarch, self._lutris)
+            self.optionsDialog.refresh_integrations()
+            self._refresh_integrations_statusbar()
             self.statusBar().showMessage(
                 f"'{rom_name}' adicionado à playlist do RetroArch.", 4000
             )
@@ -762,7 +1043,7 @@ class MainWindow(QMainWindow):
         platform = self._current_platform()
         if not platform:
             return
-        rom_path = self._find_rom_file(rom_name)
+        rom_path = library_service.find_rom_file(self.settings, rom_name, self._current_platform())
         if not rom_path:
             QMessageBox.warning(
                 self, "Arquivo não encontrado",
@@ -772,7 +1053,8 @@ class MainWindow(QMainWindow):
         core = self._retroarch.core_path(platform)
         ra_exe = self._retroarch.exe
         if self._lutris.add_game(platform, rom_name, rom_path, ra_exe, core):
-            self._integrations_panel.refresh(self._retroarch, self._lutris)
+            self.optionsDialog.refresh_integrations()
+            self._refresh_integrations_statusbar()
             self.statusBar().showMessage(
                 f"'{rom_name}' enviado ao Lutris.", 4000
             )
@@ -793,7 +1075,7 @@ class MainWindow(QMainWindow):
         platform = self._current_platform()
         if not platform:
             return
-        rom_path = self._find_rom_file(rom_name)
+        rom_path = library_service.find_rom_file(self.settings, rom_name, self._current_platform())
         if not rom_path:
             QMessageBox.warning(
                 self, "Arquivo não encontrado",
@@ -802,24 +1084,34 @@ class MainWindow(QMainWindow):
             return
         rom_data = self.platforms.getRom(platform, rom_name)
         expected = {
-            "md5":   rom_data.get("md5", ""),
-            "sha1":  rom_data.get("sha1", ""),
-            "crc32": rom_data.get("crc32", ""),
+            "md5":   rom_data.md5 if rom_data else "",
+            "sha1":  rom_data.sha1 if rom_data else "",
+            "crc32": rom_data.crc32 if rom_data else "",
         }
         self.statusBar().showMessage(f"Verificando integridade de '{rom_name}'…")
         worker = HashCheckWorker(rom_path, expected)
         worker.signals.done.connect(
-            lambda results: self._onHashCheckDone(rom_path, results)
+            lambda results, _p=platform, _r=rom_name:
+                self._onHashCheckDone(rom_path, results, _p, _r)
         )
         worker.signals.error.connect(
             lambda err: QMessageBox.warning(self, "Erro", f"Não foi possível ler o arquivo:\n{err}")
         )
         QThreadPool.globalInstance().start(worker)
 
-    def _onHashCheckDone(self, file_path: str, results: dict):
+    def _onHashCheckDone(self, file_path: str, results: dict,
+                         platform: str = None, rom_name: str = None):
         self.statusBar().clearMessage()
+        all_ok = all(
+            (not exp or act.lower() == exp.lower())
+            for act, exp in results.values()
+        )
         dlg = HashResultDialog(file_path, results, parent=self)
-        dlg.exec()
+        redownload = dlg.exec() == QDialog.DialogCode.Accepted
+        if redownload and not all_ok and platform and rom_name:
+            self.download_queue.add(platform, [rom_name])
+            self._updateStatusbarQueueText()
+            self._launchRomsDownload()
 
     # ──────────────────────────────────────────────
     # Import library
@@ -890,13 +1182,13 @@ class MainWindow(QMainWindow):
             return
         platform = self.lw_platforms.selectedItems()[0].data(Qt.ItemDataRole.UserRole)
         selected_names = [
-            self.tw_romsList.item(row.row(), 0).text()
+            self._row_shortname(row.row())
             for row in self.tw_romsList.selectedIndexes()
             if row.column() == 0 and not self.tw_romsList.isRowHidden(row.row())
         ]
         added = self.download_queue.add(platform, selected_names)
         self._updateStatusbarQueueText()
-        self.statusBar().showMessage(f"{added} ítens adicionados à fila", 3000)
+        self.statusBar().showMessage(f"{fmt_count(added)} adicionados à fila", 3000)
 
     def _downloadNowContextMenu(self):
         self._addToQueue()
@@ -906,11 +1198,13 @@ class MainWindow(QMainWindow):
         count = self.download_queue.getTotalCount()
         is_running = bool(self.download_thread and self.download_thread.isRunning())
         if count > 0:
-            self.statusbar_queue.setText(f"<a href='#'>{count} ítens na fila</a>")
+            self.statusbar_queue.setText(f"<a href='#'>{fmt_count(count)} na fila</a>")
         else:
             self.statusbar_queue.setText("")
         self.download_panel.set_downloading(is_running)
-        self.download_panel._btn_start.setEnabled(count > 0 and not is_running)
+        if not is_running:
+            self.download_panel._btn_start.setEnabled(count > 0)
+        self._update_queue_tab_label()
 
     # ──────────────────────────────────────────────
     # Download
@@ -928,6 +1222,7 @@ class MainWindow(QMainWindow):
         self.download_total_count = len(items)
         self.download_completed_count = 0
         self.download_failed = False
+        self._download_paused = False
         self._active_rom_name = None
 
         # Pre-populate panel with all queued items
@@ -951,6 +1246,7 @@ class MainWindow(QMainWindow):
         self.download_thread.finished.connect(self._onDownloadThreadFinished)
         self.download_thread.finished.connect(self.download_thread.deleteLater)
         self.download_thread.start()
+        self._tab_queue.setChecked(True)   # auto-switch to queue on download start
 
     def _onDownloadStartedItem(self, platform: str, rom_name: str, current: int, total: int):
         self._active_rom_name = rom_name
@@ -985,50 +1281,90 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(0, self._launchRomsDownload)
 
     def _onDownloadCancelled(self):
-        self.download_failed = True
+        self._download_paused = True
         if self._active_rom_name:
             self.download_panel.cancel_item(self._active_rom_name)
 
     def _onDownloadThreadFinished(self):
+        was_paused = self._download_paused
         self.download_thread = None
         self.download_worker = None
         self._active_rom_name = None
+        self._download_paused = False
         self._updateStatusbarQueueText()
-        if not self.download_failed:
+        self._tab_detail.setChecked(True)   # auto-switch back to details when done
+        if was_paused:
+            self.statusBar().showMessage("Download pausado. Clique ▶ para continuar.", 5000)
+        elif not self.download_failed:
             self.statusBar().showMessage(
-                f"{self.download_completed_count} ítens baixados.", 5000
+                f"{fmt_count(self.download_completed_count)} baixados.", 5000
             )
 
     def _cancelDownload(self):
         if self.download_worker:
             self.download_worker.cancel()
 
+    def closeEvent(self, event):
+        if self.download_thread and self.download_thread.isRunning():
+            self._cancelDownload()
+            self.download_thread.quit()
+            if not self.download_thread.wait(5000):
+                self.download_thread.terminate()
+        if hasattr(self, '_mame_thread') and self._mame_thread.isRunning():
+            self._mame_thread.quit()
+            self._mame_thread.wait(2000)
+        if hasattr(self, '_update_thread') and self._update_thread.isRunning():
+            self._update_thread.quit()
+            self._update_thread.wait(2000)
+        super().closeEvent(event)
+
     # ──────────────────────────────────────────────
     # Updates
     # ──────────────────────────────────────────────
 
     def _checkUpdates(self, at_launch: bool = False):
-        def ask():
-            ans = QMessageBox.question(
-                self, "Atualização disponível",
-                f"Uma atualização está disponível!\n\n"
-                f"Atual: {self.updater.currentVersionString()}\n"
-                f"Mais recente: {self.updater.lastestVersionString()}\n\n"
-                "Deseja atualizar agora?"
-            )
-            if ans == QMessageBox.StandardButton.Yes:
-                QMessageBox.warning(self, "Atualizando…", "Ainda não implementado.")
-            else:
-                self.statusbar_update.setText("Nova versão disponível!")
+        if at_launch and not self.settings.get('check_updates'):
+            return
 
-        update_available = self.updater.updateAvailable() if self.settings.get('check_updates') else False
+        class _Worker(QObject):
+            done = pyqtSignal(bool)
 
-        if at_launch and self.settings.get('check_updates') and update_available:
-            ask()
-        elif at_launch and self.settings.get('check_updates') and not update_available:
+            def __init__(self, updater):
+                super().__init__()
+                self._updater = updater
+
+            def run(self):
+                self.done.emit(self._updater.updateAvailable())
+
+        self._update_thread = QThread(self)
+        self._update_worker = _Worker(self.updater)
+        self._update_worker.moveToThread(self._update_thread)
+        self._update_thread.started.connect(self._update_worker.run)
+        self._update_worker.done.connect(
+            lambda avail: self._onUpdateCheckDone(avail, at_launch)
+        )
+        self._update_worker.done.connect(self._update_thread.quit)
+        self._update_thread.finished.connect(self._update_thread.deleteLater)
+        self._update_thread.start()
+
+    def _onUpdateCheckDone(self, update_available: bool, at_launch: bool):
+        if update_available:
+            self._askUpdate()
+        elif at_launch:
             self.statusbar_update.setText("Atualizado.")
-        elif not at_launch and update_available:
-            ask()
-        elif not at_launch and not update_available:
+        else:
             QMessageBox.information(self, "Atualização", "Você está atualizado.")
             self.statusbar_update.setText("Atualizado.")
+
+    def _askUpdate(self):
+        ans = QMessageBox.question(
+            self, "Atualização disponível",
+            f"Uma atualização está disponível!\n\n"
+            f"Atual: {self.updater.currentVersionString()}\n"
+            f"Mais recente: {self.updater.lastestVersionString()}\n\n"
+            "Deseja atualizar agora?"
+        )
+        if ans == QMessageBox.StandardButton.Yes:
+            QMessageBox.warning(self, "Atualizando…", "Ainda não implementado.")
+        else:
+            self.statusbar_update.setText("Nova versão disponível!")

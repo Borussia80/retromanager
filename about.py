@@ -1,16 +1,16 @@
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QPixmap, QFont
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 )
 
-from _constants import ICON_FILE
+from _constants import ABOUT_LOGO
 
 
 class About(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("About retromanager")
+        self.setWindowTitle("Sobre o Retromanager")
         self.setModal(True)
         self.setFixedWidth(460)
         self.setWindowFlag(Qt.WindowType.MSWindowsFixedSizeDialogHint, True)
@@ -19,36 +19,24 @@ class About(QDialog):
         lay.setContentsMargins(28, 28, 28, 24)
         lay.setSpacing(16)
 
-        # Header: icon + name + version
-        hdr = QHBoxLayout()
-        hdr.setSpacing(16)
-        hdr.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        # Header: wordmark (marca pixel-art + "RETROMANAGER") + subtítulo
+        hdr = QVBoxLayout()
+        hdr.setSpacing(8)
 
         logo = QLabel()
-        px = QPixmap(ICON_FILE)
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        px = QPixmap(ABOUT_LOGO)
         if not px.isNull():
-            logo.setPixmap(px.scaled(56, 56, Qt.AspectRatioMode.KeepAspectRatio,
-                                     Qt.TransformationMode.SmoothTransformation))
-        logo.setFixedSize(56, 56)
-        hdr.addWidget(logo)
+            # Pixel-art: FastTransformation mantém nitidez; exibir no tamanho natural
+            logo.setPixmap(px)
+        logo.setStyleSheet("background:transparent;border:none;")
 
-        title_col = QVBoxLayout()
-        title_col.setSpacing(2)
-
-        lbl_name = QLabel("retromanager")
-        f = QFont()
-        f.setPointSize(22)
-        f.setBold(True)
-        lbl_name.setFont(f)
-        lbl_name.setStyleSheet("color:#e8ecf5;background:transparent;border:none;")
-
-        lbl_sub = QLabel("Retro game library manager")
+        lbl_sub = QLabel("Gerenciador de biblioteca de jogos retro")
+        lbl_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_sub.setStyleSheet("color:#6b7a99;font-size:12px;background:transparent;border:none;")
 
-        title_col.addWidget(lbl_name)
-        title_col.addWidget(lbl_sub)
-        hdr.addLayout(title_col)
-        hdr.addStretch()
+        hdr.addWidget(logo)
+        hdr.addWidget(lbl_sub)
         lay.addLayout(hdr)
 
         # Divider
@@ -59,10 +47,10 @@ class About(QDialog):
 
         # Description
         desc = QLabel(
-            "Browse and download retro game ROMs directly from "
+            "Navegue e baixe ROMs de jogos retro diretamente do "
             "<a href='https://archive.org' style='color:#4f8ef7;'>archive.org</a>. "
-            "Supports 17+ platforms including NES, SNES, N64, Game Boy, Sega, "
-            "Atari, PC Engine, Neo Geo MVS, and MAME arcade."
+            "Suporta 17+ plataformas, incluindo NES, SNES, N64, Game Boy, Sega, "
+            "Atari, PC Engine, Neo Geo MVS e arcade MAME."
         )
         desc.setWordWrap(True)
         desc.setOpenExternalLinks(True)
@@ -72,7 +60,7 @@ class About(QDialog):
         # Links grid
         links = [
             ("GitHub", "https://github.com/Borussia80/retromanager"),
-            ("Issues / Bug reports", "https://github.com/Borussia80/retromanager/issues"),
+            ("Bugs e sugestões", "https://github.com/Borussia80/retromanager/issues"),
         ]
         for label, url in links:
             row = QHBoxLayout()
@@ -94,7 +82,7 @@ class About(QDialog):
 
         # Footer: license note + OK button
         footer = QHBoxLayout()
-        lbl_license = QLabel("Released under the MIT License.")
+        lbl_license = QLabel("Distribuído sob a licença MIT.")
         lbl_license.setStyleSheet("color:#3d4f6e;font-size:10px;background:transparent;border:none;")
         footer.addWidget(lbl_license, 1)
 

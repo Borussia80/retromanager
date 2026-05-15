@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=retromanager
+GenericName=Retro Library Manager
+Comment=Browse, download and organize retro ROM collections
+Exec=retromanager %u
+Icon=retromanager
+Terminal=false
+Categories=Game;Utility;
+Keywords=retro;rom;emulator;archive;nintendo;sega;atari;mame;
+MimeType=
+StartupNotify=true
+StartupWMClass=retromanager

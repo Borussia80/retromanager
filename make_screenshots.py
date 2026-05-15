@@ -11,7 +11,7 @@ from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtWidgets import QApplication, QListWidgetItem
 from PyQt6.QtCore import QResource
 
-from _constants import ICON_FILE, RESOURCES_FILE
+from _constants import ICONS_DIR, RESOURCES_FILE
 from _settings import SettingsHelper
 from _updater import UpdaterHelper
 from _platforms import PlatformsHelper
@@ -32,7 +32,10 @@ def grab(widget, name):
 def run():
     app = QApplication(sys.argv)
     app.setStyleSheet(DARK_THEME)
-    app.setWindowIcon(QIcon(ICON_FILE))
+    _icon = QIcon()
+    for _size in (16, 32, 48, 64, 128, 256, 512):
+        _icon.addPixmap(QPixmap(f"{ICONS_DIR}/icon_{_size}.png"))
+    app.setWindowIcon(_icon)
     QResource.registerResource(RESOURCES_FILE)
 
     settings  = SettingsHelper()
@@ -77,6 +80,8 @@ def run():
         app.processEvents()
         grab(w, '03_search_filter')
         w.le_filter.clear()
+        w.filter_timer.stop()
+        w._applyTableFilter()
         app.processEvents()
 
     # ── 4. Grid view ───────────────────────────────────────────
@@ -163,14 +168,19 @@ def run():
                     w._updateStatusbarQueueText()
                     app.processEvents()
                     break
+        w._tab_queue.setChecked(True)
+        app.processEvents()
         grab(w, '08_download_queue_panel')
-        # Clear fake queue
+        # Clear fake queue and switch back
         for item_w in list(w.download_panel._items.values()):
             item_w.deleteLater()
         w.download_panel._items.clear()
         w.download_panel._refresh_badge()
         w.download_queue.queue_dict.clear()
         w.download_queue._save()
+        w._updateStatusbarQueueText()
+        w._tab_detail.setChecked(True)
+        app.processEvents()
 
     # ── 9. Technical columns visible ───────────────────────────
     @step
@@ -247,12 +257,42 @@ def run():
         dlg.hide()
         dlg.deleteLater()
 
-    # ── 15. Integrations panel (sidebar close-up) ──────────────
+    # ── 15. Opções → aba Integrações ───────────────────────────
     @step
     def _():
-        px = w._integrations_panel.grab()
-        px.save(os.path.join(OUT, '15_integrations_panel.png'))
-        print(f"  saved: screenshots/15_integrations_panel.png")
+        w.optionsDialog.show()
+        w.optionsDialog.tab_widget.setCurrentIndex(1)
+        app.processEvents()
+        grab(w.optionsDialog, '15_integrations_tab')
+        w.optionsDialog.hide()
+
+    # ── 16. Opções → aba Geral ─────────────────────────────────
+    @step
+    def _():
+        w.optionsDialog.show()
+        w.optionsDialog.tab_widget.setCurrentIndex(0)
+        app.processEvents()
+        grab(w.optionsDialog, '16_options_geral_tab')
+        w.optionsDialog.hide()
+
+    # ── 17. ROM detail panel with selection ────────────────────
+    @step
+    def _():
+        for i in range(w.lw_platforms.count()):
+            item = w.lw_platforms.item(i)
+            if item and item.flags() & Qt.ItemFlag.ItemIsEnabled:
+                key = item.data(Qt.ItemDataRole.UserRole)
+                if key and key != '_FAVORITES_':
+                    w.lw_platforms.setCurrentItem(item)
+                    w._onListwidgetSelectionChanged(item)
+                    app.processEvents()
+                    if w.tw_romsList.rowCount() > 0:
+                        w.tw_romsList.selectRow(0)
+                        app.processEvents()
+                    break
+        w._tab_detail.setChecked(True)
+        app.processEvents()
+        grab(w, '17_detail_panel_selected')
 
     # ── Run all steps ──────────────────────────────────────────
     def run_steps():

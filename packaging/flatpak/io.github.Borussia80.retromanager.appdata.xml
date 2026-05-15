@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.Borussia80.retromanager</id>
+
+  <name>retromanager</name>
+  <summary>Browse, download and organize retro ROM collections</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>
+      retromanager is a Linux-friendly retro library manager. It lets you browse
+      ROM catalogues sourced from the Internet Archive, download individual titles
+      with integrity verification (MD5, SHA1, CRC32), and organize your local
+      collection. Grid and list views show Libretro box-art thumbnails. Optional
+      integration with RetroArch and Lutris lets you launch games directly.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Browse 17+ platforms with availability counts</li>
+      <li>Background downloads with progress, speed, and pause/resume</li>
+      <li>Per-file hash verification after download</li>
+      <li>Grid view with Libretro box-art thumbnails</li>
+      <li>Favorites and wishlist, persisted across sessions</li>
+      <li>RetroArch playlist integration and direct launch</li>
+      <li>Lutris game library integration</li>
+    </ul>
+    <p>
+      Use only with files and sources you are legally allowed to access.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.Borussia80.retromanager.desktop</launchable>
+
+  <url type="homepage">https://github.com/Borussia80/retromanager</url>
+  <url type="bugtracker">https://github.com/Borussia80/retromanager/issues</url>
+
+  <provides>
+    <binary>retromanager</binary>
+  </provides>
+
+  <categories>
+    <category>Game</category>
+    <category>Utility</category>
+  </categories>
+
+  <keywords>
+    <keyword>retro</keyword>
+    <keyword>rom</keyword>
+    <keyword>emulator</keyword>
+    <keyword>retroarch</keyword>
+    <keyword>lutris</keyword>
+    <keyword>archive</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="2.0.0" date="2026-05-15">
+      <description>
+        <p>Initial public release of the retromanager fork.</p>
+      </description>
+    </release>
+  </releases>
+</component>

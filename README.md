@@ -1,35 +1,63 @@
 # retromanager
 
-retromanager is a Linux-friendly retro library manager evolving from the NoIntro ROMs Downloader 2.0 RC1 codebase.
+retromanager is a Linux-friendly retro library manager. Browse ROM catalogues sourced from the Internet Archive, download with integrity verification, and organize your local collection. Optional integration with RetroArch and Lutris.
 
-The goal is to make retro-library workflows easier to understand: browse available catalogues, organize local files, verify metadata, and eventually integrate with RetroArch and Lutris. Use it only with files and sources you are legally allowed to access.
+Use only with files and sources you are legally allowed to access.
 
-## Current status
-
-This is an early fork/foundation pass. The first stabilization work is underway:
-
-- Archive catalogue reads use `https://archive.org/metadata/...`.
-- Settings are stored in `~/.config/retromanager/settings.json`.
-- Catalogue cache is stored in `~/.cache/retromanager/database_cache.json`.
-- A Linux dependency file is available at `requirements-linux.txt`.
-- A manual cache refresh script is available at `refresh-cache.sh`.
-
-Some Archive items no longer expose public file lists. retromanager keeps those platforms in the catalogue for now, but they may show zero available entries.
-
-## Run locally
+## Run from source
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install --ignore-requires-python -r requirements-linux.txt
+pip install -r requirements-linux.txt
 python app.pyw
 ```
 
-Refresh the catalogue manually:
+Refresh the ROM catalogue manually (needed on first run if no cache exists):
 
 ```bash
 ./refresh-cache.sh
 ```
+
+## Install desktop entry (source install)
+
+```bash
+./packaging/install.sh
+```
+
+Installs icons and a `.desktop` launcher to `~/.local/share/` — no root required.
+
+## Build AppImage
+
+```bash
+pip install pyinstaller
+# Install appimagetool: https://github.com/AppImage/AppImageKit/releases
+./packaging/build_appimage.sh
+```
+
+Output: `retromanager-<version>-x86_64.AppImage`
+
+## Build Flatpak (development)
+
+```bash
+flatpak install flathub org.kde.Platform//6.7 org.kde.Sdk//6.7
+flatpak install flathub org.freedesktop.Sdk.Extension.python312//24.08
+flatpak-builder --user --install --force-clean build-flatpak \
+    packaging/flatpak/io.github.Borussia80.retromanager.yml
+```
+
+> **Note:** regenerate `python-modules.json` with `flatpak-pip-generator` before
+> submitting to Flathub (SHA256 placeholders are in the manifest).
+
+## Data locations
+
+| Path | Contents |
+|------|----------|
+| `~/.config/retromanager/settings.json` | Application settings |
+| `~/.cache/retromanager/database_cache.db` | ROM catalogue (SQLite) |
+| `~/.cache/retromanager/queue.json` | Persistent download queue |
+| `~/.cache/retromanager/thumbnails/` | Box-art thumbnail cache (≤ 200 MB) |
+| `~/.cache/retromanager/logs/` | Rotating log files |
 
 ## Roadmap
 

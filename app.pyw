@@ -3,6 +3,10 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
 
+# Logging must be configured before any other local import
+from _logging import setup_logging
+setup_logging()
+
 # Helpers
 from _constants import *
 from _debug import *
@@ -27,9 +31,12 @@ if __name__ == '__main__':
   # Initialize PyQt
   app = QApplication(sys.argv)
 
-  # Load theme, icon and resources
+  # Load theme, icon (multi-resolution) and resources
   app.setStyleSheet(DARK_THEME)
-  app.setWindowIcon(QIcon(ICON_FILE))
+  _icon = QIcon()
+  for _size in (16, 32, 48, 64, 128, 256, 512):
+      _icon.addPixmap(QPixmap(f"{ICONS_DIR}/icon_{_size}.png"))
+  app.setWindowIcon(_icon)
   QResource.registerResource(RESOURCES_FILE)
 
   # Show the splashscreen and do starting stuff

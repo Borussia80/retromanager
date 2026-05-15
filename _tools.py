@@ -1,3 +1,6 @@
+import threading
+import zipfile
+
 # Qt
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
@@ -60,7 +63,7 @@ class CacheGenerator():
               "sha1": file_data.get('sha1', ''),
               "format": self.format,
             }
-      except Exception as e:
+      except (requests.exceptions.RequestException, ValueError, KeyError, OSError) as e:
         DebugHelper.print(DebugType.TYPE_ERROR, f"Could not fetch <{part_id}> from Archive: {e}", "CACHE")
 
 
@@ -95,14 +98,26 @@ class CacheGenerator():
     if self.download_completed != len(self.threads):
       self.event_loop.exec()
     
-    # Sort the data before writing
-    self.output_cache_json = {name: self.output_cache_json[name] for name in sorted(self.output_cache_json)}
-    
-    # And finally write to file
+    # Write all fetched ROMs to the SQLite catalogue DB
+    import sqlite3
+    from _platforms import _SCHEMA
     os.makedirs(CACHE_DIR, exist_ok=True)
-    with open(PLATFORMS_CACHE_FILENAME, "w", encoding="utf-8") as fp:
-      json.dump(self.output_cache_json, fp, indent=2, sort_keys=True)
-      fp.write("\n")
+    db = sqlite3.connect(PLATFORMS_CACHE_DB)
+    db.executescript(_SCHEMA)
+    db.execute("DELETE FROM roms")
+    rows = []
+    for platform in sorted(self.output_cache_json):
+      for name, d in self.output_cache_json[platform].items():
+        rows.append((
+          platform, name,
+          d.get('source_id', ''), d.get('file_path', ''),
+          int(d.get('size', 0)),
+          d.get('md5', ''), d.get('crc32', ''),
+          d.get('sha1', ''), d.get('format', ''),
+        ))
+    db.executemany("INSERT INTO roms VALUES (?,?,?,?,?,?,?,?,?)", rows)
+    db.commit()
+    db.close()
 
 
   def _updateMessage(self, platform_name: str):
@@ -130,16 +145,16 @@ class DownloadWorker(QObject):
     self.settings = settings
     self.platforms = platforms
     self.queue_items = queue_items
-    self._cancel_requested = False
+    self._cancel = threading.Event()
 
 
   def cancel(self):
-    self._cancel_requested = True
+    self._cancel.set()
 
 
   def run(self):
     for current_index, (platform, rom_name) in enumerate(self.queue_items, start=1):
-      if self._cancel_requested:
+      if self._cancel.is_set():
         self.cancelled.emit()
         break
       self.startedItem.emit(platform, rom_name, current_index, len(self.queue_items))
@@ -151,7 +166,19 @@ class DownloadWorker(QObject):
       except InterruptedError:
         self.cancelled.emit()
         break
-      except Exception as e:
+      except PermissionError as e:
+        msg = f"Permissão negada: {e.filename or rom_name}"
+        self.failedItem.emit(platform, rom_name, msg)
+        break
+      except OSError as e:
+        import errno as _errno
+        if e.errno == _errno.ENOSPC:
+          msg = "Disco cheio — libere espaço e tente novamente."
+        else:
+          msg = str(e)
+        self.failedItem.emit(platform, rom_name, msg)
+        break
+      except (requests.exceptions.RequestException, ValueError, zipfile.BadZipFile) as e:
         self.failedItem.emit(platform, rom_name, str(e))
         break
     self.finished.emit()
@@ -161,11 +188,18 @@ class DownloadWorker(QObject):
     import hashlib, os, requests, time, zlib
     from urllib.parse import quote
 
-    rom_data = self.platforms.getRom(platform, rom_name)
-    rom_format = rom_data['format']
-    file_path = rom_data.get('file_path')
-    encoded_path = quote(file_path, safe='/') if file_path else f"{quote(rom_name)}.{rom_format}"
-    rom_url = f"https://archive.org/download/{rom_data['source_id']}/{encoded_path}"
+    rom = self.platforms.getRom(platform, rom_name)
+    if not rom:
+      raise ValueError(f"ROM não encontrada no catálogo: {rom_name}")
+    rom_format = rom.format
+    source_id = rom.source_id
+    import re as _re
+    if not _re.fullmatch(r'[\w][\w.\-]*', source_id):
+      raise ValueError(f"source_id inválido no catálogo: {source_id!r}")
+    encoded_path = quote(rom.file_path, safe='/') if rom.file_path else f"{quote(rom_name)}.{rom_format}"
+    rom_url = f"https://archive.org/download/{source_id}/{encoded_path}"
+    if not rom_url.startswith("https://archive.org/"):
+      raise ValueError(f"URL de download fora do domínio permitido: {rom_url}")
 
     base_dir = self.settings.get('download_path')
     output_dir = os.path.join(base_dir, platform) if self.settings.get('organize_by_platform') else base_dir
@@ -205,7 +239,7 @@ class DownloadWorker(QObject):
         else:
           resp.raise_for_status()
 
-        total_bytes = int(resp.headers.get("content-length") or rom_data.get("size") or 0)
+        total_bytes = int(resp.headers.get("content-length") or rom.size or 0)
         if resume_from > 0:
           total_bytes += resume_from
 
@@ -214,7 +248,7 @@ class DownloadWorker(QObject):
           for chunk in resp.iter_content(chunk_size=65536):
             if not chunk:
               continue
-            if self._cancel_requested:
+            if self._cancel.is_set():
               raise InterruptedError("Download cancelled by user")
             of.write(chunk)
             md5.update(chunk)
@@ -226,9 +260,9 @@ class DownloadWorker(QObject):
 
       # Validate — hash mismatch: delete corrupt .part
       try:
-        self._validateHash("MD5",   md5.hexdigest(),              rom_data.get("md5", ""))
-        self._validateHash("SHA1",  sha1.hexdigest(),             rom_data.get("sha1", ""))
-        self._validateHash("CRC32", f"{crc32 & 0xffffffff:08x}", rom_data.get("crc32", ""))
+        self._validateHash("MD5",   md5.hexdigest(),              rom.md5)
+        self._validateHash("SHA1",  sha1.hexdigest(),             rom.sha1)
+        self._validateHash("CRC32", f"{crc32 & 0xffffffff:08x}", rom.crc32)
       except ValueError:
         if os.path.exists(temp_path):
           os.remove(temp_path)
@@ -241,7 +275,7 @@ class DownloadWorker(QObject):
       raise  # keep .part for future resume
     except ValueError:
       raise  # .part already removed above
-    except Exception:
+    except (requests.exceptions.RequestException, OSError):
       raise  # keep .part — network/IO error, resume later
 
 
@@ -254,13 +288,21 @@ class DownloadWorker(QObject):
     import os, zipfile
     from py7zr import SevenZipFile
 
-    extract_dir = os.path.dirname(archive_path)
+    extract_dir = os.path.realpath(os.path.dirname(archive_path))
     DebugHelper.print(DebugType.TYPE_INFO, f"Unzipping [{archive_path}]...", "unzip")
     if archive_path.lower().endswith('.zip'):
       with zipfile.ZipFile(archive_path) as archive:
+        for member in archive.namelist():
+          dest = os.path.realpath(os.path.join(extract_dir, member))
+          if not dest.startswith(extract_dir + os.sep) and dest != extract_dir:
+            raise ValueError(f"ZIP slip bloqueado: {member!r}")
         archive.extractall(extract_dir)
     else:
       with SevenZipFile(archive_path) as archive:
+        for member in archive.getnames():
+          dest = os.path.realpath(os.path.join(extract_dir, member))
+          if not dest.startswith(extract_dir + os.sep) and dest != extract_dir:
+            raise ValueError(f"7z path traversal bloqueado: {member!r}")
         archive.extractall(extract_dir)
     os.remove(archive_path)
 
@@ -298,7 +340,7 @@ class HashCheckWorker(QRunnable):
         "CRC32": (f"{crc32 & 0xffffffff:08x}",  self._expected.get("crc32", "")),
       }
       self.signals.done.emit(results)
-    except Exception as e:
+    except OSError as e:
       self.signals.error.emit(str(e))
 
 
@@ -322,13 +364,9 @@ class Tools():
 
     if validity_days == 0:
       return True
-    if not os.path.exists(PLATFORMS_CACHE_FILENAME):
+    check = PLATFORMS_CACHE_DB if os.path.exists(PLATFORMS_CACHE_DB) else PLATFORMS_CACHE_FILENAME
+    if not os.path.exists(check):
       return False
 
-    cache_mdate = os.path.getmtime(PLATFORMS_CACHE_FILENAME)
-    cache_mdate = datetime.fromtimestamp(cache_mdate)
-    today_date = datetime.today()
-    expiration_date = cache_mdate + timedelta(days=validity_days)
-
-    if expiration_date > today_date: return True
-    else: return False
+    cache_mdate = datetime.fromtimestamp(os.path.getmtime(check))
+    return cache_mdate + timedelta(days=validity_days) > datetime.today()

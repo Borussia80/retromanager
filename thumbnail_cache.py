@@ -1,11 +1,12 @@
 import os
 from urllib.parse import quote
 
-import requests
-from PyQt6.QtCore import QObject, QRunnable, pyqtSignal
+from PyQt6.QtCore import QEventLoop, QObject, QRunnable, QUrl, pyqtSignal
+from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
+
+from _thumbnail_evict import CACHE_DIR, evict_lru  # noqa: F401 (re-export)
 
 THUMBNAILS_BASE = "https://thumbnails.libretro.com"
-CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "retromanager", "thumbnails")
 
 # Maps internal platform names → Libretro system names (as used on thumbnails.libretro.com)
 LIBRETRO_SYSTEM: dict[str, str | None] = {
@@ -85,14 +86,26 @@ class ThumbnailFetcher(QRunnable):
         url = get_thumbnail_url(self.platform, self.rom_name)
         if not url:
             return
+
+        manager = QNetworkAccessManager()
+        loop = QEventLoop()
+
+        request = QNetworkRequest(QUrl(url))
+        request.setTransferTimeout(8_000)
+
+        reply = manager.get(request)
+        reply.finished.connect(loop.quit)
+        loop.exec()
+
         try:
-            resp = requests.get(url, timeout=8)
-            if resp.status_code == 200:
+            if reply.error() == QNetworkReply.NetworkError.NoError:
+                data = bytes(reply.readAll())
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 with open(path, "wb") as f:
-                    f.write(resp.content)
+                    f.write(data)
+                evict_lru()
                 self.signals.done.emit(self.platform, self.rom_name, path)
             else:
                 self.signals.failed.emit(self.platform, self.rom_name)
-        except Exception:
-            self.signals.failed.emit(self.platform, self.rom_name)
+        finally:
+            reply.deleteLater()
