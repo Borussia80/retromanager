@@ -24,6 +24,7 @@ from options import Options
 from about import About
 from retroarch_helper import RetroArchHelper
 from lutris_helper import LutrisHelper
+from empty_state import EmptyState
 
 
 class MainWindow(QMainWindow):
@@ -48,6 +49,9 @@ class MainWindow(QMainWindow):
         self.download_failed = False
         self._active_rom_name = None
         self.table_placeholder_active = False
+        self._current_platform_roms: list = []
+        self._current_platform_downloaded: set = set()
+        self._loaded_count = 0
 
         self.filter_timer = QTimer(self)
         self.filter_timer.setSingleShot(True)
@@ -64,7 +68,11 @@ class MainWindow(QMainWindow):
 
         self._checkUpdates(at_launch=True)
         self._loadPlatformsList()
-        self._showEmptyTableMessage("Selecione uma plataforma à esquerda para explorar.")
+        self._showTablePlaceholder(
+            "◉",
+            "Bem-vindo ao Retromanager",
+            "Escolha uma plataforma à esquerda para começar.",
+        )
         self._restoreQueueToPanel()
 
     # ──────────────────────────────────────────────
@@ -130,8 +138,13 @@ class MainWindow(QMainWindow):
         filter_lay.setSpacing(8)
 
         self.le_filter = QLineEdit()
-        self.le_filter.setPlaceholderText("Buscar por título, região, versão, protótipo, beta…")
+        self.le_filter.setPlaceholderText("Buscar ROMs…")
         self.le_filter.setClearButtonEnabled(True)
+        _search_icon = QIcon.fromTheme("edit-find")
+        if not _search_icon.isNull():
+            _search_act = QAction(_search_icon, "", self.le_filter)
+            _search_act.setEnabled(False)
+            self.le_filter.addAction(_search_act, QLineEdit.ActionPosition.LeadingPosition)
         filter_lay.addWidget(self.le_filter)
 
         self.pb_eur = QPushButton("Europe")
@@ -146,14 +159,9 @@ class MainWindow(QMainWindow):
             filter_lay.addWidget(btn)
         self.pb_all.setChecked(True)
 
-        # Separator
-        sep = QLabel("|")
-        sep.setStyleSheet("color:#2e3a52;background:transparent;")
-        filter_lay.addWidget(sep)
-
-        # View toggle: List / Grid
-        self.pb_view_list = QPushButton("≡")
-        self.pb_view_grid = QPushButton("⊞")
+        # View toggle: List / Grid (no separator per G·01)
+        self.pb_view_list = QPushButton("☰")
+        self.pb_view_grid = QPushButton("▦")
         for btn in (self.pb_view_list, self.pb_view_grid):
             btn.setCheckable(True)
             btn.setAutoExclusive(True)
@@ -161,8 +169,8 @@ class MainWindow(QMainWindow):
             btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
             filter_lay.addWidget(btn)
         self.pb_view_list.setChecked(True)
-        self.pb_view_list.setToolTip("Vista em lista")
-        self.pb_view_grid.setToolTip("Vista em grade")
+        self.pb_view_list.setToolTip("Vista em lista (Ctrl+1)")
+        self.pb_view_grid.setToolTip("Vista em grade (Ctrl+2)")
 
         middle_lay.addWidget(filter_bar)
 
@@ -215,7 +223,44 @@ class MainWindow(QMainWindow):
         self._view_stack = QStackedWidget()
         self._view_stack.addWidget(self.tw_romsList)
         self._view_stack.addWidget(self.game_grid)
-        middle_lay.addWidget(self._view_stack)
+
+        # Chunk banner — shown when only first 500 of N ROMs are loaded
+        self._chunk_banner = QWidget()
+        self._chunk_banner.setFixedHeight(34)
+        self._chunk_banner.setStyleSheet(
+            "background:#1c2437;border-bottom:1px solid #2e3a52;"
+        )
+        _cb_lay = QHBoxLayout(self._chunk_banner)
+        _cb_lay.setContentsMargins(12, 0, 8, 0)
+        _cb_lay.setSpacing(6)
+        self._chunk_lbl = QLabel()
+        self._chunk_lbl.setStyleSheet(
+            "font-size:11px;color:#6b7a99;background:transparent;border:none;"
+        )
+        self._chunk_btn = QPushButton("Carregar todos")
+        self._chunk_btn.setFixedHeight(22)
+        self._chunk_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self._chunk_btn.setStyleSheet("""
+            QPushButton {
+                background:transparent;border:1px solid #2e3a52;border-radius:4px;
+                padding:2px 10px;color:#a9b4cc;font-size:11px;
+            }
+            QPushButton:hover { background:#2e3a52;color:#e8ecf5; }
+            QPushButton:pressed { background:#252d40; }
+        """)
+        self._chunk_btn.clicked.connect(self._loadAllRoms)
+        _cb_lay.addWidget(self._chunk_lbl)
+        _cb_lay.addStretch()
+        _cb_lay.addWidget(self._chunk_btn)
+        self._chunk_banner.hide()
+        middle_lay.addWidget(self._chunk_banner)
+
+        # Content stack: index 0 = _view_stack (data), index 1 = EmptyState
+        self._content_stack = QStackedWidget()
+        self._content_stack.addWidget(self._view_stack)
+        self._empty_state_w = EmptyState()
+        self._content_stack.addWidget(self._empty_state_w)
+        middle_lay.addWidget(self._content_stack)
 
         self._splitter.addWidget(middle)
 
@@ -306,6 +351,14 @@ class MainWindow(QMainWindow):
         self.download_queue.updatedListEvent = self._updateStatusbarQueueText
         self.download_queue.downloadClickedEvent = self._launchRomsDownload
 
+        QShortcut(QKeySequence("Ctrl+1"), self).activated.connect(
+            lambda: (self.pb_view_list.setChecked(True), self._switch_view("list"))
+        )
+        QShortcut(QKeySequence("Ctrl+2"), self).activated.connect(
+            lambda: (self.pb_view_grid.setChecked(True), self._switch_view("grid"))
+        )
+        QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(self.le_filter.setFocus)
+
     # ──────────────────────────────────────────────
     # Platform list
     # ──────────────────────────────────────────────
@@ -345,6 +398,8 @@ class MainWindow(QMainWindow):
         for col in [3, 4, 5]:
             self.tw_romsList.setColumnHidden(col, not checked)
 
+    _CHUNK_SIZE = 500
+
     def _onListwidgetSelectionChanged(self, item: QListWidgetItem):
         platform_name = item.data(Qt.ItemDataRole.UserRole) or item.text()
 
@@ -353,52 +408,82 @@ class MainWindow(QMainWindow):
             return
 
         self.table_placeholder_active = False
+        self._hideEmptyState()
+        self._hide_chunk_banner()
         self.tw_romsList.setSortingEnabled(False)
         self.tw_romsList.setRowCount(0)
 
         downloaded_set = self._scan_downloaded(platform_name)
-        rom_names = []
-        for i, (rom_name, rom_data) in enumerate(self.platforms.getRoms(platform_name)):
-            rom_names.append(rom_name)
-            rom_name_item = QTableWidgetItem(rom_name)
-            rom_name_item.setToolTip(self._buildRomSummary(platform_name, rom_name, rom_data))
-            rom_name_item.setData(Qt.ItemDataRole.UserRole,     platform_name)
-            rom_name_item.setData(Qt.ItemDataRole.UserRole + 1, rom_name in downloaded_set)
-            rom_name_item.setData(Qt.ItemDataRole.UserRole + 2,
-                                  self._favorites.is_favorite(platform_name, rom_name))
+        all_roms = list(self.platforms.getRoms(platform_name))
+        self._current_platform_roms = all_roms
+        self._current_platform_downloaded = downloaded_set
 
-            rom_size_item = QTableWidgetItem(Tools.convertSizeToReadable(rom_data['size']))
-            rom_size_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            rom_format_item = QTableWidgetItem(rom_data['format'].upper())
-            rom_format_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            rom_format_item.setForeground(QColor("#6b7a99"))
-
-            rom_md5_item  = QTableWidgetItem(rom_data['md5'])
-            rom_crc32_item = QTableWidgetItem(rom_data['crc32'].upper())
-            rom_sha1_item = QTableWidgetItem(rom_data['sha1'])
-            for it in (rom_md5_item, rom_crc32_item, rom_sha1_item):
-                it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                it.setForeground(QColor("#6b7a99"))
-
-            self.tw_romsList.insertRow(i)
-            self.tw_romsList.setItem(i, 0, rom_name_item)
-            self.tw_romsList.setItem(i, 1, rom_size_item)
-            self.tw_romsList.setItem(i, 2, rom_format_item)
-            self.tw_romsList.setItem(i, 3, rom_md5_item)
-            self.tw_romsList.setItem(i, 4, rom_crc32_item)
-            self.tw_romsList.setItem(i, 5, rom_sha1_item)
+        chunk = all_roms[:self._CHUNK_SIZE]
+        for i, (rom_name, rom_data) in enumerate(chunk):
+            self._insert_rom_row(i, platform_name, rom_name, rom_data, downloaded_set)
+        self._loaded_count = len(chunk)
 
         self.tw_romsList.setSortingEnabled(True)
         self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
+
+        total = len(all_roms)
+        if total > self._CHUNK_SIZE:
+            self._show_chunk_banner(self._CHUNK_SIZE, total)
+
         self._applyTableFilter()
 
         # Populate grid with sorted names
-        self.game_grid.load(platform_name, sorted(rom_names), downloaded_set)
+        self.game_grid.load(platform_name, sorted(r for r, _ in all_roms), downloaded_set)
 
-        self.statusBar().showMessage(
-            f"{platform_name}: {fmt_count(len(rom_names))}", 5000
-        )
+        self.statusBar().showMessage(f"{platform_name}: {fmt_count(total)}", 5000)
+
+    def _insert_rom_row(self, row: int, platform: str, rom_name: str,
+                        rom_data: dict, downloaded_set: set):
+        rom_name_item = QTableWidgetItem(rom_name)
+        rom_name_item.setToolTip(self._buildRomSummary(platform, rom_name, rom_data))
+        rom_name_item.setData(Qt.ItemDataRole.UserRole,     platform)
+        rom_name_item.setData(Qt.ItemDataRole.UserRole + 1, rom_name in downloaded_set)
+        rom_name_item.setData(Qt.ItemDataRole.UserRole + 2,
+                              self._favorites.is_favorite(platform, rom_name))
+
+        rom_size_item = QTableWidgetItem(Tools.convertSizeToReadable(rom_data['size']))
+        rom_size_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        rom_format_item = QTableWidgetItem(rom_data['format'].upper())
+        rom_format_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        rom_format_item.setForeground(QColor("#6b7a99"))
+
+        rom_md5_item   = QTableWidgetItem(rom_data['md5'])
+        rom_crc32_item = QTableWidgetItem(rom_data['crc32'].upper())
+        rom_sha1_item  = QTableWidgetItem(rom_data['sha1'])
+        for it in (rom_md5_item, rom_crc32_item, rom_sha1_item):
+            it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            it.setForeground(QColor("#6b7a99"))
+
+        self.tw_romsList.insertRow(row)
+        self.tw_romsList.setItem(row, 0, rom_name_item)
+        self.tw_romsList.setItem(row, 1, rom_size_item)
+        self.tw_romsList.setItem(row, 2, rom_format_item)
+        self.tw_romsList.setItem(row, 3, rom_md5_item)
+        self.tw_romsList.setItem(row, 4, rom_crc32_item)
+        self.tw_romsList.setItem(row, 5, rom_sha1_item)
+
+    def _loadAllRoms(self):
+        platform = self._current_platform()
+        if not platform or platform == _FAVORITES_KEY or not self._current_platform_roms:
+            return
+        downloaded_set = self._current_platform_downloaded
+        remaining = self._current_platform_roms[self._loaded_count:]
+
+        self.tw_romsList.setSortingEnabled(False)
+        for j, (rom_name, rom_data) in enumerate(remaining, start=self._loaded_count):
+            self._insert_rom_row(j, platform, rom_name, rom_data, downloaded_set)
+        self._loaded_count = len(self._current_platform_roms)
+
+        self.tw_romsList.setSortingEnabled(True)
+        self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
+        self._hide_chunk_banner()
+        self._applyTableFilter()
 
     def _onPlatformCurrentItemChanged(self, current, previous):
         for item, selected in ((previous, False), (current, True)):
@@ -409,6 +494,7 @@ class MainWindow(QMainWindow):
 
     def _loadFavoritesView(self):
         self.table_placeholder_active = False
+        self._hide_chunk_banner()
         self.tw_romsList.setSortingEnabled(False)
         self.tw_romsList.setRowCount(0)
 
@@ -416,7 +502,11 @@ class MainWindow(QMainWindow):
         downloaded_set = self._scan_downloaded()
 
         if not favs:
-            self._showEmptyTableMessage("Nenhum favorito ainda. Clique com o botão direito em um jogo e escolha Favoritar.")
+            self._showTablePlaceholder(
+                "☆",
+                "Sem favoritos ainda",
+                "Clique com o botão direito em um jogo e escolha Favoritar.",
+            )
             return
 
         for i, (platform, rom_name) in enumerate(favs):
@@ -520,15 +610,31 @@ class MainWindow(QMainWindow):
                 pass
         return stems
 
-    def _showEmptyTableMessage(self, message: str):
+    def _showEmptyState(self, icon: str, title: str, description: str,
+                        action_label: str = None, action_callback=None):
+        self._empty_state_w.set_content(icon, title, description, action_label, action_callback)
+        self._content_stack.setCurrentIndex(1)
+
+    def _hideEmptyState(self):
+        self._content_stack.setCurrentIndex(0)
+
+    def _showTablePlaceholder(self, icon: str, title: str, description: str,
+                              action_label: str = None, action_callback=None):
+        """Show EmptyState and mark table as placeholder (no real row data)."""
         self.table_placeholder_active = True
-        self.tw_romsList.setRowCount(1)
-        self.tw_romsList.setSpan(0, 0, 1, self.tw_romsList.columnCount())
-        item = QTableWidgetItem(message)
-        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        item.setFlags(Qt.ItemFlag.NoItemFlags)
-        item.setForeground(QColor("#3d4f6e"))
-        self.tw_romsList.setItem(0, 0, item)
+        self.tw_romsList.setRowCount(0)
+        self._showEmptyState(icon, title, description, action_label, action_callback)
+
+    def _show_chunk_banner(self, shown: int, total: int):
+        shown_fmt = f"{shown:,}".replace(",", ".")
+        total_fmt = f"{total:,}".replace(",", ".")
+        self._chunk_lbl.setText(
+            f"ⓘ  Mostrando {shown_fmt} de {total_fmt} ROMs.  Refine a busca ou"
+        )
+        self._chunk_banner.show()
+
+    def _hide_chunk_banner(self):
+        self._chunk_banner.hide()
 
     def _filterTableWidget(self):
         self.filter_timer.start()
@@ -546,7 +652,46 @@ class MainWindow(QMainWindow):
             if show:
                 visible += 1
         self.game_grid.apply_filter(keywords, region)
+
+        if visible == 0 and self.tw_romsList.rowCount() > 0:
+            self._showFilterEmptyState(region, keywords)
+        else:
+            self._hideEmptyState()
         self.statusBar().showMessage(f"{fmt_count(visible)} visíveis", 3000)
+
+    def _showFilterEmptyState(self, region: str | None, keywords: list[str]):
+        platform = self._current_platform() or "esta plataforma"
+        if region:
+            short = platform.split(" - ")[-1] if " - " in platform else platform
+            is_mame = "MAME" in platform
+            desc = (
+                "Os ROMs do MAME raramente carregam tag de região. "
+                "Tente outra plataforma ou remova o filtro."
+            ) if is_mame else (
+                "Nenhum ROM desta plataforma tem essa tag de região. "
+                "Tente outra plataforma ou remova o filtro."
+            )
+            self._showEmptyState(
+                "⊘",
+                f"Nenhum ROM com tag {region} em {short}",
+                desc,
+                "Mostrar todas as regiões",
+                self._clearRegionFilter,
+            )
+        else:
+            self._showEmptyState(
+                "⊘",
+                "Nada encontrado",
+                "Tente outros termos ou limpe a busca.",
+                "Limpar busca",
+                self.le_filter.clear,
+            )
+
+    def _clearRegionFilter(self):
+        self.pb_all.blockSignals(True)
+        self.pb_all.setChecked(True)
+        self.pb_all.blockSignals(False)
+        self._applyTableFilter()
 
     def _selectedRegion(self):
         if self.pb_eur.isChecked(): return "Europe"
