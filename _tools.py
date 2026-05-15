@@ -174,10 +174,18 @@ class DownloadWorker(QObject):
     from urllib.parse import quote
 
     rom_data = self.platforms.getRom(platform, rom_name)
+    if not rom_data:
+      raise ValueError(f"ROM não encontrada no catálogo: {rom_name}")
     rom_format = rom_data['format']
+    source_id = rom_data.get('source_id', '')
+    import re as _re
+    if not _re.fullmatch(r'[\w][\w.\-]*', source_id):
+      raise ValueError(f"source_id inválido no catálogo: {source_id!r}")
     file_path = rom_data.get('file_path')
     encoded_path = quote(file_path, safe='/') if file_path else f"{quote(rom_name)}.{rom_format}"
-    rom_url = f"https://archive.org/download/{rom_data['source_id']}/{encoded_path}"
+    rom_url = f"https://archive.org/download/{source_id}/{encoded_path}"
+    if not rom_url.startswith("https://archive.org/"):
+      raise ValueError(f"URL de download fora do domínio permitido: {rom_url}")
 
     base_dir = self.settings.get('download_path')
     output_dir = os.path.join(base_dir, platform) if self.settings.get('organize_by_platform') else base_dir
