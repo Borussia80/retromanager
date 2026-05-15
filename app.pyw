@@ -3,6 +3,10 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
 
+# Logging must be configured before any other local import
+from _logging import setup_logging
+setup_logging()
+
 # Helpers
 from _constants import *
 from _debug import *
