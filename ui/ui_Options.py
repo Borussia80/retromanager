@@ -65,10 +65,6 @@ class Ui_Dialog(object):
         path_lay = QtWidgets.QHBoxLayout(self.groupBox_3)
         path_lay.setObjectName("horizontalLayout_2")
 
-        self.label_3 = QtWidgets.QLabel(parent=self.groupBox_3)
-        self.label_3.setObjectName("label_3")
-        path_lay.addWidget(self.label_3)
-
         self.le_DownloadPath = QtWidgets.QLineEdit(parent=self.groupBox_3)
         self.le_DownloadPath.setSizePolicy(
             QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.MinimumExpanding,
@@ -148,7 +144,6 @@ class Ui_Dialog(object):
         self.label.setText(_translate("Dialog", "Atualizar catálogo a cada (dias)"))
         # cb_cache_expiration items são populados dinamicamente em options.py com userData
         self.groupBox_3.setTitle(_translate("Dialog", "Pasta de download"))
-        self.label_3.setText(_translate("Dialog", "Pasta de download"))
         self.pb_BrowsePath.setText(_translate("Dialog", "Escolher…"))
         self.groupBox_2.setTitle(_translate("Dialog", "Comportamento"))
         self.cb_unzip.setText(_translate("Dialog", "Descompactar após baixar"))
