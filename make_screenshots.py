@@ -80,6 +80,8 @@ def run():
         app.processEvents()
         grab(w, '03_search_filter')
         w.le_filter.clear()
+        w.filter_timer.stop()
+        w._applyTableFilter()
         app.processEvents()
 
     # ── 4. Grid view ───────────────────────────────────────────

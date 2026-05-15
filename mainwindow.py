@@ -162,11 +162,22 @@ class MainWindow(QMainWindow):
         # View toggle: List / Grid (no separator per G·01)
         self.pb_view_list = QPushButton("☰")
         self.pb_view_grid = QPushButton("▦")
+        _view_toggle_style = """
+            QPushButton {
+                background:transparent;border:1px solid #2e3a52;border-radius:5px;
+                color:#6b7a99;font-size:13px;
+            }
+            QPushButton:checked {
+                background:#4f8ef7;border-color:#4f8ef7;color:#fff;
+            }
+            QPushButton:hover:!checked { background:#1e2535;color:#a9b4cc; }
+        """
         for btn in (self.pb_view_list, self.pb_view_grid):
             btn.setCheckable(True)
             btn.setAutoExclusive(True)
             btn.setFixedSize(28, 28)
             btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            btn.setStyleSheet(_view_toggle_style)
             filter_lay.addWidget(btn)
         self.pb_view_list.setChecked(True)
         self.pb_view_list.setToolTip("Vista em lista (Ctrl+1)")
@@ -627,12 +638,13 @@ class MainWindow(QMainWindow):
         self.table_placeholder_active = True
         self.tw_romsList.setRowCount(0)
         self._showEmptyState(icon, title, description, action_label, action_callback)
+        self.statusBar().clearMessage()
 
     def _show_chunk_banner(self, shown: int, total: int):
         shown_fmt = f"{shown:,}".replace(",", ".")
         total_fmt = f"{total:,}".replace(",", ".")
         self._chunk_lbl.setText(
-            f"ⓘ  Mostrando {shown_fmt} de {total_fmt} ROMs.  Refine a busca ou"
+            f"ⓘ  Mostrando {shown_fmt} de {total_fmt} ROMs."
         )
         self._chunk_banner.show()
 
@@ -660,7 +672,7 @@ class MainWindow(QMainWindow):
             self._showFilterEmptyState(region, keywords)
         else:
             self._hideEmptyState()
-        self.statusBar().showMessage(f"{fmt_count(visible)} visíveis", 3000)
+            self.statusBar().showMessage(f"{fmt_count(visible)} visíveis", 3000)
 
     def _showFilterEmptyState(self, region: str | None, keywords: list[str]):
         platform = self._current_platform() or "esta plataforma"
