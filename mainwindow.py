@@ -1,3 +1,5 @@
+import os
+
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
@@ -14,6 +16,9 @@ from error_dialog import DownloadErrorDialog
 from game_grid import GameGridWidget
 from options import Options
 from about import About
+from retroarch_helper import RetroArchHelper
+from lutris_helper import LutrisHelper
+from integrations_panel import IntegrationsPanel
 
 
 class MainWindow(QMainWindow):
@@ -33,6 +38,9 @@ class MainWindow(QMainWindow):
         self.download_failed = False
         self._active_rom_name = None
         self.table_placeholder_active = False
+
+        self._retroarch = RetroArchHelper()
+        self._lutris = LutrisHelper()
 
         self.filter_timer = QTimer(self)
         self.filter_timer.setSingleShot(True)
@@ -96,6 +104,9 @@ class MainWindow(QMainWindow):
         )
         self.lw_platforms.setSpacing(0)
         sidebar_lay.addWidget(self.lw_platforms)
+
+        self._integrations_panel = IntegrationsPanel(self._retroarch, self._lutris)
+        sidebar_lay.addWidget(self._integrations_panel)
 
         self._splitter.addWidget(sidebar)
 
@@ -434,7 +445,20 @@ class MainWindow(QMainWindow):
         if self.table_placeholder_active:
             return
         menu = QMenu(self.tw_romsList)
-        has_sel = bool(self.tw_romsList.selectionModel().selectedRows())
+        menu.setToolTipsVisible(True)
+
+        selected_rows = self.tw_romsList.selectionModel().selectedRows()
+        has_sel = bool(selected_rows)
+        is_single = len(selected_rows) == 1
+
+        rom_name = None
+        is_downloaded = False
+        if is_single:
+            row = selected_rows[0].row()
+            it = self.tw_romsList.item(row, 0)
+            if it:
+                rom_name = it.text()
+                is_downloaded = bool(it.data(Qt.ItemDataRole.UserRole + 1))
 
         act_queue = QAction("Adicionar à fila", self)
         act_queue.setEnabled(has_sel)
@@ -452,6 +476,41 @@ class MainWindow(QMainWindow):
         menu.addAction(act_now)
         menu.addSeparator()
         menu.addAction(act_details)
+
+        # ── RetroArch / Lutris ──────────────────────
+        menu.addSeparator()
+
+        ra_ok = self._retroarch.detected
+        lt_ok = self._lutris.detected
+
+        act_ra_launch = QAction("▶  Abrir no RetroArch", self)
+        act_ra_launch.setEnabled(is_single and is_downloaded and ra_ok)
+        if not ra_ok:
+            act_ra_launch.setToolTip("RetroArch não encontrado no sistema")
+        elif not is_downloaded:
+            act_ra_launch.setToolTip("ROM ainda não baixada")
+        act_ra_launch.triggered.connect(lambda: self._openInRetroArch(rom_name))
+
+        act_ra_playlist = QAction("+  Adicionar à playlist do RetroArch", self)
+        act_ra_playlist.setEnabled(is_single and is_downloaded and ra_ok)
+        if not ra_ok:
+            act_ra_playlist.setToolTip("RetroArch não encontrado no sistema")
+        elif not is_downloaded:
+            act_ra_playlist.setToolTip("ROM ainda não baixada")
+        act_ra_playlist.triggered.connect(lambda: self._addToRetroArchPlaylist(rom_name))
+
+        act_lutris = QAction("  Adicionar ao Lutris", self)
+        act_lutris.setEnabled(is_single and is_downloaded and lt_ok)
+        if not lt_ok:
+            act_lutris.setToolTip("Lutris não encontrado no sistema")
+        elif not is_downloaded:
+            act_lutris.setToolTip("ROM ainda não baixada")
+        act_lutris.triggered.connect(lambda: self._addToLutris(rom_name))
+
+        menu.addAction(act_ra_launch)
+        menu.addAction(act_ra_playlist)
+        menu.addAction(act_lutris)
+
         menu.exec(QCursor.pos())
 
     # ──────────────────────────────────────────────
@@ -460,6 +519,106 @@ class MainWindow(QMainWindow):
 
     def _switch_view(self, mode: str):
         self._view_stack.setCurrentIndex(0 if mode == "list" else 1)
+
+    # ──────────────────────────────────────────────
+    # RetroArch / Lutris integration
+    # ──────────────────────────────────────────────
+
+    def _find_rom_file(self, rom_name: str) -> str | None:
+        """Return the path of the downloaded ROM file whose stem matches rom_name."""
+        path = self.settings.get('download_path')
+        try:
+            entries = os.listdir(path)
+        except OSError:
+            return None
+        # Prefer non-archive files (extracted ROMs)
+        for f in entries:
+            stem, ext = os.path.splitext(f)
+            if stem == rom_name and ext.lower() not in ('.zip', '.7z', '.part'):
+                full = os.path.join(path, f)
+                if os.path.isfile(full):
+                    return full
+        # Fall back to archive file
+        for f in entries:
+            stem, ext = os.path.splitext(f)
+            if stem == rom_name and ext.lower() in ('.zip', '.7z'):
+                return os.path.join(path, f)
+        return None
+
+    def _current_platform(self) -> str | None:
+        sel = self.lw_platforms.selectedItems()
+        if not sel:
+            return None
+        return sel[0].data(Qt.ItemDataRole.UserRole)
+
+    def _openInRetroArch(self, rom_name: str | None):
+        if not rom_name:
+            return
+        platform = self._current_platform()
+        if not platform:
+            return
+        rom_path = self._find_rom_file(rom_name)
+        if not rom_path:
+            QMessageBox.warning(
+                self, "Arquivo não encontrado",
+                f"Nenhum arquivo encontrado para:\n{rom_name}\n\n"
+                "Verifique a pasta de downloads nas configurações."
+            )
+            return
+        if not self._retroarch.launch(platform, rom_path):
+            QMessageBox.warning(self, "RetroArch", "Não foi possível iniciar o RetroArch.")
+
+    def _addToRetroArchPlaylist(self, rom_name: str | None):
+        if not rom_name:
+            return
+        platform = self._current_platform()
+        if not platform:
+            return
+        rom_path = self._find_rom_file(rom_name)
+        if not rom_path:
+            QMessageBox.warning(
+                self, "Arquivo não encontrado",
+                f"Nenhum arquivo encontrado para:\n{rom_name}"
+            )
+            return
+        if self._retroarch.add_to_playlist(platform, rom_name, rom_path):
+            self._integrations_panel.refresh(self._retroarch, self._lutris)
+            self.statusBar().showMessage(
+                f"'{rom_name}' adicionado à playlist do RetroArch.", 4000
+            )
+        else:
+            QMessageBox.warning(
+                self, "RetroArch",
+                "Não foi possível gravar a playlist.\n"
+                "Verifique se o RetroArch está instalado corretamente."
+            )
+
+    def _addToLutris(self, rom_name: str | None):
+        if not rom_name:
+            return
+        platform = self._current_platform()
+        if not platform:
+            return
+        rom_path = self._find_rom_file(rom_name)
+        if not rom_path:
+            QMessageBox.warning(
+                self, "Arquivo não encontrado",
+                f"Nenhum arquivo encontrado para:\n{rom_name}"
+            )
+            return
+        core = self._retroarch.core_path(platform)
+        ra_exe = self._retroarch.exe
+        if self._lutris.add_game(platform, rom_name, rom_path, ra_exe, core):
+            self._integrations_panel.refresh(self._retroarch, self._lutris)
+            self.statusBar().showMessage(
+                f"'{rom_name}' enviado ao Lutris.", 4000
+            )
+        else:
+            QMessageBox.warning(
+                self, "Lutris",
+                "Não foi possível abrir o Lutris.\n"
+                "Verifique se o Lutris está instalado."
+            )
 
     # ──────────────────────────────────────────────
     # Queue management

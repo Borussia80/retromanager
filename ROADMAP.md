@@ -51,16 +51,20 @@ retromanager is being shaped into a retro library manager: simple browsing, reli
 
 ## Phase 4 - RetroArch
 
-- Detect RetroArch config and playlist paths.
-- Map platforms to cores/playlists.
-- Generate or update `.lpl` playlists.
-- Launch selected games through RetroArch.
+- [x] Detect RetroArch config dir (native, Flatpak, Snap).
+- [x] Map all 17 platforms to their default libretro cores.
+- [x] Add ROM to platform `.lpl` playlist (creates file if missing, deduplicates).
+- [x] Launch ROM directly in RetroArch with the correct core.
+- [x] Show RetroArch status and playlist count in the sidebar integrations panel.
+- [x] Context menu actions: "Abrir no RetroArch", "Adicionar à playlist".
 
 ## Phase 5 - Lutris
 
-- Detect Lutris.
-- Create launcher entries from local library items.
-- Export/import launcher configuration.
+- [x] Detect Lutris binary and PGA database (native and Flatpak).
+- [x] Add game to Lutris via installer YAML (`lutris -i`) with the linux runner.
+- [x] RetroArch core path passed automatically when RetroArch is also detected.
+- [x] Show Lutris status and game count in the sidebar integrations panel.
+- [x] Context menu action: "Adicionar ao Lutris".
 
 ## Phase 6 - Distribution
 
