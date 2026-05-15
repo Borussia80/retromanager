@@ -25,6 +25,7 @@ from about import About
 from retroarch_helper import RetroArchHelper
 from lutris_helper import LutrisHelper
 from empty_state import EmptyState
+import mame_names as _mame_names
 
 
 class MainWindow(QMainWindow):
@@ -52,6 +53,8 @@ class MainWindow(QMainWindow):
         self._current_platform_roms: list = []
         self._current_platform_downloaded: set = set()
         self._loaded_count = 0
+        self._mame_names: dict[str, str] = {}
+        self._mame_names_loading = False
 
         self.filter_timer = QTimer(self)
         self.filter_timer.setSingleShot(True)
@@ -68,6 +71,7 @@ class MainWindow(QMainWindow):
 
         self._checkUpdates(at_launch=True)
         self._loadPlatformsList()
+        self._loadMameNamesAsync()
         self._showTablePlaceholder(
             "◉",
             "Bem-vindo ao Retromanager",
@@ -404,6 +408,49 @@ class MainWindow(QMainWindow):
             f"{available}/{self.platforms.platformsCount()} plataformas  ·  {fmt_count(total)}"
         )
 
+    def _loadMameNamesAsync(self):
+        """Load MAME name cache in a background thread; harmless if XML not present."""
+        self._mame_names_loading = True
+
+        class _Worker(QRunnable):
+            def __init__(self, callback):
+                super().__init__()
+                self._cb = callback
+
+            def run(self):
+                names = _mame_names.load()
+                QMetaObject.invokeMethod(
+                    self._cb, "_onMameNamesLoaded",
+                    Qt.ConnectionType.QueuedConnection,
+                    Q_ARG(object, names),
+                )
+
+        # QRunnable with invokeMethod on a plain QObject doesn't work cleanly in PyQt6;
+        # use a simple QThread instead.
+        self._mame_thread = QThread(self)
+
+        class _Loader(QObject):
+            done = pyqtSignal(dict)
+
+            def run(self):
+                self.done.emit(_mame_names.load())
+
+        self._mame_loader = _Loader()
+        self._mame_loader.moveToThread(self._mame_thread)
+        self._mame_thread.started.connect(self._mame_loader.run)
+        self._mame_loader.done.connect(self._onMameNamesLoaded)
+        self._mame_loader.done.connect(self._mame_thread.quit)
+        self._mame_thread.finished.connect(self._mame_thread.deleteLater)
+        self._mame_thread.start()
+
+    def _onMameNamesLoaded(self, names: dict):
+        self._mame_names = names
+        self._mame_names_loading = False
+        if names:
+            self.statusBar().showMessage(
+                f"Nomes MAME: {len(names):,} títulos carregados.".replace(",", "."), 4000
+            )
+
     # ──────────────────────────────────────────────
     # Game table
     # ──────────────────────────────────────────────
@@ -453,12 +500,21 @@ class MainWindow(QMainWindow):
 
     def _insert_rom_row(self, row: int, platform: str, rom_name: str,
                         rom_data: dict, downloaded_set: set):
-        rom_name_item = QTableWidgetItem(rom_name)
-        rom_name_item.setToolTip(self._buildRomSummary(platform, rom_name, rom_data))
+        # For MAME, show the friendly title from the name cache when available
+        is_mame = platform == "Arcade - MAME"
+        friendly = self._mame_names.get(rom_name) if is_mame and self._mame_names else None
+        display_name = friendly if friendly else rom_name
+
+        rom_name_item = QTableWidgetItem(display_name)
+        tooltip = self._buildRomSummary(platform, display_name, rom_data)
+        if friendly:
+            tooltip = f"{rom_name}\n{tooltip}"  # prepend shortname for MAME
+        rom_name_item.setToolTip(tooltip)
         rom_name_item.setData(Qt.ItemDataRole.UserRole,     platform)
         rom_name_item.setData(Qt.ItemDataRole.UserRole + 1, rom_name in downloaded_set)
         rom_name_item.setData(Qt.ItemDataRole.UserRole + 2,
                               self._favorites.is_favorite(platform, rom_name))
+        rom_name_item.setData(Qt.ItemDataRole.UserRole + 3, rom_name)  # always shortname
 
         size_str = Tools.convertSizeToReadable(rom_data['size'])
         fmt_str = rom_data['format'].upper()
@@ -642,8 +698,10 @@ class MainWindow(QMainWindow):
         region = self._selectedRegion()
         visible = 0
         for i in range(self.tw_romsList.rowCount()):
-            name = self.tw_romsList.item(i, 0).text()
-            show = self._romMatchesFilters(name, keywords, region)
+            it = self.tw_romsList.item(i, 0)
+            name = it.text()
+            shortname = it.data(Qt.ItemDataRole.UserRole + 3) or ""
+            show = self._romMatchesFilters(name, keywords, region, shortname)
             self.tw_romsList.setRowHidden(i, not show)
             if show:
                 visible += 1
@@ -695,11 +753,16 @@ class MainWindow(QMainWindow):
         if self.pb_jpn.isChecked(): return "Japan"
         return None
 
-    def _romMatchesFilters(self, rom_name: str, keywords: list[str], region: str | None) -> bool:
+    def _romMatchesFilters(self, rom_name: str, keywords: list[str], region: str | None,
+                           shortname: str = "") -> bool:
         target = rom_name.lower()
         if region and f"({region})".lower() not in target:
             return False
-        return all(kw in target for kw in keywords)
+        if not keywords:
+            return True
+        # Match keywords against display name OR original shortname (for MAME)
+        alt = shortname.lower()
+        return all(kw in target or (alt and kw in alt) for kw in keywords)
 
     def _buildRomSummary(self, platform_name: str, rom_name: str, rom_data: dict) -> str:
         import re
@@ -713,13 +776,21 @@ class MainWindow(QMainWindow):
             f"Formato: {rom_data['format']}"
         )
 
+    def _row_shortname(self, row: int) -> str:
+        """Return the catalogue key (shortname) for a table row, works for MAME and consoles."""
+        it = self.tw_romsList.item(row, 0)
+        if not it:
+            return ""
+        stored = it.data(Qt.ItemDataRole.UserRole + 3)
+        return stored if stored else it.text()
+
     def _selectedRomContext(self):
         selected = self.tw_romsList.selectionModel().selectedRows()
         if not selected or not self.lw_platforms.selectedItems():
             return None
         row = selected[0].row()
         platform = self.lw_platforms.selectedItems()[0].data(Qt.ItemDataRole.UserRole)
-        rom_name = self.tw_romsList.item(row, 0).text()
+        rom_name = self._row_shortname(row)
         return platform, rom_name, self.platforms.getRom(platform, rom_name)
 
     def _showSelectedRomDetails(self, *args):
@@ -754,7 +825,7 @@ class MainWindow(QMainWindow):
             row = selected_rows[0].row()
             it = self.tw_romsList.item(row, 0)
             if it:
-                rom_name = it.text()
+                rom_name = self._row_shortname(row)
                 is_downloaded = bool(it.data(Qt.ItemDataRole.UserRole + 1))
 
         act_queue = QAction("Adicionar à fila", self)
