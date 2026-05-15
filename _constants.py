@@ -7,7 +7,9 @@ VERSION_MINOR = 0
 VERSION_REVISION = "0 RC1"
 
 RESOURCES_FILE = os.path.join(os.path.split(__file__)[0], "resources.rcc")
-ICON_FILE = os.path.join(os.path.split(__file__)[0], "icon.png")
+ICONS_DIR  = os.path.join(os.path.split(__file__)[0], "resources", "icons")
+ICON_FILE  = os.path.join(ICONS_DIR, "icon_256.png")
+ABOUT_LOGO = os.path.join(ICONS_DIR, "about_dialog.png")
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", APP_NAME)
 CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", APP_NAME)
 DEFAULT_DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), "ROMs")
