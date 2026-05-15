@@ -145,6 +145,7 @@ class MainWindow(QMainWindow):
         self.le_filter = QLineEdit()
         self.le_filter.setPlaceholderText("Buscar ROMs…")
         self.le_filter.setClearButtonEnabled(True)
+        self.le_filter.setMaxLength(100)
         _search_icon = QIcon.fromTheme("edit-find")
         if not _search_icon.isNull():
             _search_act = QAction(_search_icon, "", self.le_filter)
