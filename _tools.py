@@ -287,6 +287,10 @@ class DownloadWorker(QObject):
         archive.extractall(extract_dir)
     else:
       with SevenZipFile(archive_path) as archive:
+        for member in archive.getnames():
+          dest = os.path.realpath(os.path.join(extract_dir, member))
+          if not dest.startswith(extract_dir + os.sep) and dest != extract_dir:
+            raise ValueError(f"7z path traversal bloqueado: {member!r}")
         archive.extractall(extract_dir)
     os.remove(archive_path)
 
