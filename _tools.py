@@ -60,7 +60,7 @@ class CacheGenerator():
               "sha1": file_data.get('sha1', ''),
               "format": self.format,
             }
-      except Exception as e:
+      except (requests.exceptions.RequestException, ValueError, KeyError, OSError) as e:
         DebugHelper.print(DebugType.TYPE_ERROR, f"Could not fetch <{part_id}> from Archive: {e}", "CACHE")
 
 
@@ -322,7 +322,7 @@ class HashCheckWorker(QRunnable):
         "CRC32": (f"{crc32 & 0xffffffff:08x}",  self._expected.get("crc32", "")),
       }
       self.signals.done.emit(results)
-    except Exception as e:
+    except OSError as e:
       self.signals.error.emit(str(e))
 
 

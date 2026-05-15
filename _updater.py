@@ -23,8 +23,8 @@ class UpdaterHelper():
       self.LASTEST_MAJOR = int(self.last_release_version[0])
       self.LASTEST_MINOR = int(self.last_release_version[1][0:1]) # TO BE MODIFIED WHEN v1.3a WILL BE GONE
       self.LASTEST_REVISION = 0 # THIS ONE TOO...
-    except Exception as e:
-      DebugHelper.print(DebugType.TYPE_ERROR, list(e.args), "EXCEPTION")
+    except (requests.exceptions.RequestException, ValueError, KeyError, IndexError) as e:
+      DebugHelper.print(DebugType.TYPE_ERROR, list(e.args), "UPDATER")
 
 
   def updateAvailable(self) -> bool:
