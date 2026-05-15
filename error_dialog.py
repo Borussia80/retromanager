@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
 class DownloadErrorDialog(QDialog):
     def __init__(self, rom_name: str, platform: str, reason: str, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Download failed")
+        self.setWindowTitle("Falha no download")
         self.setModal(True)
         self.setFixedWidth(440)
         self.setWindowFlags(
@@ -43,7 +43,7 @@ class DownloadErrorDialog(QDialog):
             font-weight: bold;
         """)
 
-        lbl_title = QLabel("Download failed")
+        lbl_title = QLabel("Falha no download")
         lbl_title.setStyleSheet("font-size:16px;font-weight:600;color:#e8ecf5;")
 
         hdr.addWidget(icon)
