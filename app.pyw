@@ -11,8 +11,7 @@ from _debug import *
 from splashscreen import SplashScreen
 from mainwindow import MainWindow
 
-# darktheme package
-import qdarktheme as darktheme
+from theme import DARK_THEME
 
 
 
@@ -28,8 +27,8 @@ if __name__ == '__main__':
   # Initialize PyQt
   app = QApplication(sys.argv)
 
-  # Load theme and ressources
-  darktheme.setup_theme('auto')
+  # Load theme and resources
+  app.setStyleSheet(DARK_THEME)
   QResource.registerResource(RESOURCES_FILE)
 
   # Show the splashscreen and do starting stuff
