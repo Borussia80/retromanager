@@ -4,8 +4,9 @@ from urllib.parse import quote
 import requests
 from PyQt6.QtCore import QObject, QRunnable, pyqtSignal
 
+from _thumbnail_evict import CACHE_DIR, evict_lru  # noqa: F401 (re-export)
+
 THUMBNAILS_BASE = "https://thumbnails.libretro.com"
-CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "retromanager", "thumbnails")
 
 # Maps internal platform names → Libretro system names (as used on thumbnails.libretro.com)
 LIBRETRO_SYSTEM: dict[str, str | None] = {
@@ -91,6 +92,7 @@ class ThumbnailFetcher(QRunnable):
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 with open(path, "wb") as f:
                     f.write(resp.content)
+                evict_lru()
                 self.signals.done.emit(self.platform, self.rom_name, path)
             else:
                 self.signals.failed.emit(self.platform, self.rom_name)

@@ -49,4 +49,6 @@ jobs:
             library_service.py \
             mame_names.py \
             _logging.py \
+            models.py \
+            _thumbnail_evict.py \
             tests/
