@@ -1365,6 +1365,20 @@ class MainWindow(QMainWindow):
         if self.download_worker:
             self.download_worker.cancel()
 
+    def closeEvent(self, event):
+        if self.download_thread and self.download_thread.isRunning():
+            self._cancelDownload()
+            self.download_thread.quit()
+            if not self.download_thread.wait(5000):
+                self.download_thread.terminate()
+        if hasattr(self, '_mame_thread') and self._mame_thread.isRunning():
+            self._mame_thread.quit()
+            self._mame_thread.wait(2000)
+        if hasattr(self, '_update_thread') and self._update_thread.isRunning():
+            self._update_thread.quit()
+            self._update_thread.wait(2000)
+        super().closeEvent(event)
+
     # ──────────────────────────────────────────────
     # Updates
     # ──────────────────────────────────────────────
