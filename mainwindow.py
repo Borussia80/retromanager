@@ -212,20 +212,20 @@ class MainWindow(QMainWindow):
         hh.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
         hh.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
         hh.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
-        self.tw_romsList.setColumnWidth(1, 100)
+        self.tw_romsList.setColumnWidth(1, 120)
         self.tw_romsList.setColumnWidth(2, 70)
         self.tw_romsList.setColumnWidth(3, 260)
         self.tw_romsList.setColumnWidth(4, 100)
         self.tw_romsList.setColumnWidth(5, 260)
+
+        # Column 2 (Formato) is permanently hidden — format is shown as suffix in column 1
+        self.tw_romsList.setColumnHidden(2, True)
 
         self._toggleTechnicalColumns(False)
 
         # Game title delegate for badges
         self._title_delegate = GameTitleDelegate(self.tw_romsList)
         self.tw_romsList.setItemDelegateForColumn(0, self._title_delegate)
-
-        self._format_delegate = FormatBadgeDelegate(self.tw_romsList)
-        self.tw_romsList.setItemDelegateForColumn(2, self._format_delegate)
 
         # Grid view
         self.game_grid = GameGridWidget()
@@ -460,12 +460,13 @@ class MainWindow(QMainWindow):
         rom_name_item.setData(Qt.ItemDataRole.UserRole + 2,
                               self._favorites.is_favorite(platform, rom_name))
 
-        rom_size_item = QTableWidgetItem(Tools.convertSizeToReadable(rom_data['size']))
+        size_str = Tools.convertSizeToReadable(rom_data['size'])
+        fmt_str = rom_data['format'].upper()
+        rom_size_item = QTableWidgetItem(f"{size_str} · {fmt_str}")
         rom_size_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        rom_format_item = QTableWidgetItem(rom_data['format'].upper())
+        rom_format_item = QTableWidgetItem(fmt_str)  # hidden column 2 — kept for data access
         rom_format_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        rom_format_item.setForeground(QColor("#6b7a99"))
 
         rom_md5_item   = QTableWidgetItem(rom_data['md5'])
         rom_crc32_item = QTableWidgetItem(rom_data['crc32'].upper())
@@ -523,37 +524,17 @@ class MainWindow(QMainWindow):
             )
             return
 
-        for i, (platform, rom_name) in enumerate(favs):
+        row_idx = 0
+        for platform, rom_name in favs:
             rom_data = self.platforms.getRom(platform, rom_name)
             if not rom_data:
                 continue
-
-            rom_name_item = QTableWidgetItem(rom_name)
-            rom_name_item.setData(Qt.ItemDataRole.UserRole,     platform)
-            rom_name_item.setData(Qt.ItemDataRole.UserRole + 1, rom_name in downloaded_set)
-            rom_name_item.setData(Qt.ItemDataRole.UserRole + 2, True)
-
-            rom_size_item = QTableWidgetItem(Tools.convertSizeToReadable(rom_data['size']))
-            rom_size_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            rom_format_item = QTableWidgetItem(rom_data['format'].upper())
-            rom_format_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            rom_format_item.setForeground(QColor("#6b7a99"))
-
-            rom_md5_item   = QTableWidgetItem(rom_data['md5'])
-            rom_crc32_item = QTableWidgetItem(rom_data['crc32'].upper())
-            rom_sha1_item  = QTableWidgetItem(rom_data['sha1'])
-            for it in (rom_md5_item, rom_crc32_item, rom_sha1_item):
-                it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                it.setForeground(QColor("#6b7a99"))
-
-            self.tw_romsList.insertRow(i)
-            self.tw_romsList.setItem(i, 0, rom_name_item)
-            self.tw_romsList.setItem(i, 1, rom_size_item)
-            self.tw_romsList.setItem(i, 2, rom_format_item)
-            self.tw_romsList.setItem(i, 3, rom_md5_item)
-            self.tw_romsList.setItem(i, 4, rom_crc32_item)
-            self.tw_romsList.setItem(i, 5, rom_sha1_item)
+            self._insert_rom_row(row_idx, platform, rom_name, rom_data, downloaded_set)
+            # Mark as favorite (overrides the is_favorite lookup in _insert_rom_row)
+            it = self.tw_romsList.item(row_idx, 0)
+            if it:
+                it.setData(Qt.ItemDataRole.UserRole + 2, True)
+            row_idx += 1
 
         self.tw_romsList.setSortingEnabled(True)
         self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
