@@ -1,0 +1,97 @@
+---
+# Flatpak manifest for retromanager.
+#
+# Prerequisites:
+#   flatpak install flathub org.kde.Platform//6.7 org.kde.Sdk//6.7
+#   flatpak install flathub org.freedesktop.Sdk.Extension.python312//24.08
+#
+# Build:
+#   flatpak-builder --user --install --force-clean build-flatpak \
+#       packaging/flatpak/io.github.Borussia80.retromanager.yml
+#
+# Generate pip sources (requires flatpak-pip-generator):
+#   python flatpak-pip-generator --runtime org.kde.Sdk//6.7 \
+#       PyQt6 "PyQt6-Qt6>=6.11" py7zr requests \
+#       -o packaging/flatpak/python-modules.json
+
+app-id: io.github.Borussia80.retromanager
+runtime: org.kde.Platform
+runtime-version: "6.7"
+sdk: org.kde.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.python312
+command: retromanager
+
+finish-args:
+  # Display (Wayland + X11 fallback)
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  # Network access (Archive.org downloads, GitHub update check)
+  - --share=network
+  # Home dir read for ROM imports; downloads go to ~/ROMs by default
+  - --filesystem=home
+  # DBus for desktop notifications (optional)
+  - --talk-name=org.freedesktop.Notifications
+
+build-options:
+  append-path: /usr/lib/sdk/python312/bin
+  env:
+    PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    PYTHON: python3.12
+
+modules:
+  # ── Python pip packages ─────────────────────────────────────────────────────
+  # Run flatpak-pip-generator to regenerate python-modules.json with exact
+  # SHA256 hashes before submitting to Flathub.
+  - name: python-packages
+    buildsystem: simple
+    build-commands:
+      - pip3 install --no-build-isolation --prefix=/app py7zr requests
+    # Replace with generated sources from flatpak-pip-generator:
+    sources:
+      - type: file
+        url: https://files.pythonhosted.org/packages/source/p/py7zr/py7zr-1.1.0.tar.gz
+        sha256: PLACEHOLDER_sha256_py7zr
+      - type: file
+        url: https://files.pythonhosted.org/packages/source/r/requests/requests-2.34.0.tar.gz
+        sha256: PLACEHOLDER_sha256_requests
+
+  # ── retromanager application ────────────────────────────────────────────────
+  - name: retromanager
+    buildsystem: simple
+    build-commands:
+      # Install Python sources
+      - install -d /app/lib/retromanager
+      - |
+        cp *.py *.pyw /app/lib/retromanager/
+        cp -r ui/ resources/ /app/lib/retromanager/
+        cp resources.rcc /app/lib/retromanager/
+      # Wrapper script
+      - |
+        install -Dm755 /dev/stdin /app/bin/retromanager <<'EOF'
+        #!/usr/bin/env bash
+        exec python3 /app/lib/retromanager/app.pyw "$@"
+        EOF
+      # Desktop entry
+      - |
+        sed 's|Exec=retromanager|Exec=retromanager|' \
+            packaging/flatpak/../retromanager.desktop \
+            > /app/share/applications/io.github.Borussia80.retromanager.desktop
+        sed -i 's|^Icon=.*|Icon=io.github.Borussia80.retromanager|' \
+            /app/share/applications/io.github.Borussia80.retromanager.desktop
+      # Icons
+      - |
+        for size in 16 32 48 64 128 256 512; do
+          install -Dm644 \
+              resources/icons/icon_${size}.png \
+              /app/share/icons/hicolor/${size}x${size}/apps/io.github.Borussia80.retromanager.png
+        done
+      # AppStream metainfo
+      - install -Dm644 packaging/flatpak/io.github.Borussia80.retromanager.appdata.xml \
+            /app/share/metainfo/io.github.Borussia80.retromanager.appdata.xml
+
+    sources:
+      - type: git
+        url: https://github.com/Borussia80/retromanager.git
+        branch: main
