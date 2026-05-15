@@ -3,7 +3,7 @@ from PyQt6.QtCore import Qt, QSize, QRect
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QBrush, QPainter
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel,
-    QStyledItemDelegate, QStyle,
+    QStyledItemDelegate, QStyle, QApplication,
 )
 
 
@@ -188,3 +188,40 @@ class GameTitleDelegate(QStyledItemDelegate):
 
     def sizeHint(self, option, index):
         return QSize(option.rect.width(), self._ROW_H)
+
+
+class FormatBadgeDelegate(QStyledItemDelegate):
+    """Renders the file format (zip, 7z) as a small monospaced pill badge."""
+    _BADGE_RADIUS = 3
+    _PAD_H = 8
+    _PAD_V = 2
+
+    def paint(self, painter, option, index):
+        painter.save()
+        if option.state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(option.rect, QColor("#1e2d4a"))
+        elif option.state & QStyle.StateFlag.State_MouseOver:
+            painter.fillRect(option.rect, QColor("#1e2535"))
+
+        text = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        if text:
+            f = QFont(option.font)
+            f.setFamily("monospace")
+            f.setPointSize(9)
+            fm = QFontMetrics(f)
+            bw = fm.horizontalAdvance(text) + self._PAD_H * 2
+            bh = fm.height() + self._PAD_V * 2
+            bx = option.rect.center().x() - bw // 2
+            by = option.rect.center().y() - bh // 2
+            r = QRect(bx, by, bw, bh)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("#1e2535"))
+            painter.drawRoundedRect(r, self._BADGE_RADIUS, self._BADGE_RADIUS)
+            painter.setFont(f)
+            painter.setPen(QColor("#6b7a99"))
+            painter.drawText(r, Qt.AlignmentFlag.AlignCenter, text)
+
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        return QSize(option.rect.width(), 28)

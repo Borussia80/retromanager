@@ -9,7 +9,8 @@ from _tools import Tools, DownloadWorker
 from _debug import *
 from download_queue import DownloadQueue
 from download_panel import DownloadQueuePanel
-from platform_icons import PlatformItemWidget, GameTitleDelegate
+from platform_icons import PlatformItemWidget, GameTitleDelegate, FormatBadgeDelegate
+from error_dialog import DownloadErrorDialog
 from options import Options
 from about import About
 
@@ -116,10 +117,6 @@ class MainWindow(QMainWindow):
         self.le_filter.setClearButtonEnabled(True)
         filter_lay.addWidget(self.le_filter)
 
-        lbl_region = QLabel("Region:")
-        lbl_region.setStyleSheet("color:#6b7a99;font-size:11px;background:transparent;")
-        filter_lay.addWidget(lbl_region)
-
         self.pb_eur = QPushButton("Europe")
         self.pb_usa = QPushButton("USA")
         self.pb_jpn = QPushButton("Japan")
@@ -157,6 +154,9 @@ class MainWindow(QMainWindow):
         # Game title delegate for badges
         self._title_delegate = GameTitleDelegate(self.tw_romsList)
         self.tw_romsList.setItemDelegateForColumn(0, self._title_delegate)
+
+        self._format_delegate = FormatBadgeDelegate(self.tw_romsList)
+        self.tw_romsList.setItemDelegateForColumn(2, self._format_delegate)
 
         middle_lay.addWidget(self.tw_romsList)
         self._splitter.addWidget(middle)
@@ -485,11 +485,9 @@ class MainWindow(QMainWindow):
         self.download_failed = True
         self.download_panel.fail_item(rom_name, error)
         DebugHelper.print(DebugType.TYPE_ERROR, f"Download failed [{platform}] {rom_name}: {error}", "downloader")
-        QMessageBox.warning(
-            self, "Download failed",
-            f"Could not download:\n\n[{platform}] {rom_name}\n\n{error}\n\n"
-            "The item was left in the queue so you can try again."
-        )
+        dlg = DownloadErrorDialog(rom_name, platform, error, parent=self)
+        if dlg.exec() == DownloadErrorDialog.DialogCode.Accepted:
+            QTimer.singleShot(0, self._launchRomsDownload)
 
     def _onDownloadCancelled(self):
         self.download_failed = True
