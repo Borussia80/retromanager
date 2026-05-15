@@ -1,10 +1,10 @@
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QPixmap, QFont
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 )
 
-from _constants import ICON_FILE
+from _constants import ABOUT_LOGO
 
 
 class About(QDialog):
@@ -19,36 +19,24 @@ class About(QDialog):
         lay.setContentsMargins(28, 28, 28, 24)
         lay.setSpacing(16)
 
-        # Header: icon + name + version
-        hdr = QHBoxLayout()
-        hdr.setSpacing(16)
-        hdr.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        # Header: wordmark (marca pixel-art + "RETROMANAGER") + subtítulo
+        hdr = QVBoxLayout()
+        hdr.setSpacing(8)
 
         logo = QLabel()
-        px = QPixmap(ICON_FILE)
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        px = QPixmap(ABOUT_LOGO)
         if not px.isNull():
-            logo.setPixmap(px.scaled(56, 56, Qt.AspectRatioMode.KeepAspectRatio,
-                                     Qt.TransformationMode.SmoothTransformation))
-        logo.setFixedSize(56, 56)
-        hdr.addWidget(logo)
-
-        title_col = QVBoxLayout()
-        title_col.setSpacing(2)
-
-        lbl_name = QLabel("Retromanager")
-        f = QFont()
-        f.setPointSize(22)
-        f.setBold(True)
-        lbl_name.setFont(f)
-        lbl_name.setStyleSheet("color:#e8ecf5;background:transparent;border:none;")
+            # Pixel-art: FastTransformation mantém nitidez; exibir no tamanho natural
+            logo.setPixmap(px)
+        logo.setStyleSheet("background:transparent;border:none;")
 
         lbl_sub = QLabel("Gerenciador de biblioteca de jogos retro")
+        lbl_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_sub.setStyleSheet("color:#6b7a99;font-size:12px;background:transparent;border:none;")
 
-        title_col.addWidget(lbl_name)
-        title_col.addWidget(lbl_sub)
-        hdr.addLayout(title_col)
-        hdr.addStretch()
+        hdr.addWidget(logo)
+        hdr.addWidget(lbl_sub)
         lay.addLayout(hdr)
 
         # Divider
