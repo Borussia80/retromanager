@@ -405,6 +405,7 @@ class MainWindow(QMainWindow):
         self.le_filter.textChanged.connect(self._filterTableWidget)
         self.download_panel.downloadRequested.connect(self._launchRomsDownload)
         self.download_panel.downloadPauseRequested.connect(self._cancelDownload)
+        self.download_panel.retryRequested.connect(self._retryDownload)
         self.pb_view_list.toggled.connect(lambda on: self._switch_view("list") if on else None)
         self.pb_view_grid.toggled.connect(lambda on: self._switch_view("grid") if on else None)
         self.game_grid.romDoubleClicked.connect(self._downloadRomByName)
@@ -1303,6 +1304,10 @@ class MainWindow(QMainWindow):
     def _cancelDownload(self):
         if self.download_worker:
             self.download_worker.cancel()
+
+    def _retryDownload(self, rom_name: str):
+        if not (self.download_thread and self.download_thread.isRunning()):
+            self._launchRomsDownload()
 
     def closeEvent(self, event):
         if self.download_thread and self.download_thread.isRunning():

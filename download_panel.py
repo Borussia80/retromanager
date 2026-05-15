@@ -22,6 +22,8 @@ def _fmt_eta(seconds: int) -> str:
 
 
 class DownloadItemWidget(QWidget):
+    retryClicked = pyqtSignal()
+
     def __init__(self, rom_name: str, parent=None):
         super().__init__(parent)
         self._is_complete = False
@@ -50,11 +52,29 @@ class DownloadItemWidget(QWidget):
         self.lbl_meta = QLabel("Na fila")
         self.lbl_meta.setStyleSheet("font-size:10px;color:#6b7a99;border:none;")
 
+        self._btn_retry = QPushButton("↻")
+        self._btn_retry.setFixedSize(20, 16)
+        self._btn_retry.setVisible(False)
+        self._btn_retry.setToolTip("Tentar novamente")
+        self._btn_retry.setStyleSheet(
+            "QPushButton { background:#2e3a52;border:none;border-radius:3px;"
+            "color:#6b7a99;font-size:11px; }"
+            "QPushButton:hover { background:#3a4a6b;color:#a9b4cc; }"
+        )
+        self._btn_retry.clicked.connect(self.retryClicked)
+
+        meta_row = QHBoxLayout()
+        meta_row.setContentsMargins(0, 0, 0, 0)
+        meta_row.setSpacing(6)
+        meta_row.addWidget(self.lbl_meta, 1)
+        meta_row.addWidget(self._btn_retry)
+
         lay.addWidget(self.lbl_name)
         lay.addWidget(self.bar)
-        lay.addWidget(self.lbl_meta)
+        lay.addLayout(meta_row)
 
     def set_downloading(self):
+        self._btn_retry.setVisible(False)
         self.bar.setValue(0)
         self.bar.setStyleSheet("""
             QProgressBar { background:#252d40; border-radius:2px; border:none; }
@@ -81,6 +101,7 @@ class DownloadItemWidget(QWidget):
 
     def set_complete(self):
         self._is_complete = True
+        self._btn_retry.setVisible(False)
         self.bar.setValue(1000)
         self.bar.setStyleSheet("""
             QProgressBar { background:#252d40; border-radius:2px; border:none; }
@@ -90,6 +111,7 @@ class DownloadItemWidget(QWidget):
         self.lbl_meta.setStyleSheet("font-size:10px;color:#34c97e;border:none;")
 
     def set_failed(self, error: str = ""):
+        self._btn_retry.setVisible(True)
         self.bar.setStyleSheet("""
             QProgressBar { background:#252d40; border-radius:2px; border:none; }
             QProgressBar::chunk { background:#e8453c; border-radius:2px; }
@@ -98,6 +120,7 @@ class DownloadItemWidget(QWidget):
         self.lbl_meta.setStyleSheet("font-size:10px;color:#e8453c;border:none;")
 
     def set_cancelled(self):
+        self._btn_retry.setVisible(False)
         self.lbl_meta.setText("Cancelado")
         self.lbl_meta.setStyleSheet("font-size:10px;color:#6b7a99;border:none;")
 
@@ -106,6 +129,7 @@ class DownloadQueuePanel(QWidget):
     downloadRequested = pyqtSignal()
     downloadPauseRequested = pyqtSignal()
     downloadResumeRequested = pyqtSignal()
+    retryRequested = pyqtSignal(str)   # rom_name
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -241,6 +265,7 @@ class DownloadQueuePanel(QWidget):
         if rom_name in self._items:
             return
         widget = DownloadItemWidget(rom_name)
+        widget.retryClicked.connect(lambda _n=rom_name: self.retryRequested.emit(_n))
         # insert before the stretch
         self._inner_lay.insertWidget(self._inner_lay.count() - 1, widget)
         self._items[rom_name] = widget
