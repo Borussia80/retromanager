@@ -247,12 +247,23 @@ def run():
         dlg.hide()
         dlg.deleteLater()
 
-    # ── 15. Integrations panel (sidebar close-up) ──────────────
+    # ── 15. Opções → aba Integrações ───────────────────────────
     @step
     def _():
-        px = w._integrations_panel.grab()
-        px.save(os.path.join(OUT, '15_integrations_panel.png'))
-        print(f"  saved: screenshots/15_integrations_panel.png")
+        w.optionsDialog.show()
+        w.optionsDialog.tab_widget.setCurrentIndex(1)
+        app.processEvents()
+        grab(w.optionsDialog, '15_integrations_tab')
+        w.optionsDialog.hide()
+
+    # ── 16. Opções → aba Geral ─────────────────────────────────
+    @step
+    def _():
+        w.optionsDialog.show()
+        w.optionsDialog.tab_widget.setCurrentIndex(0)
+        app.processEvents()
+        grab(w.optionsDialog, '16_options_geral_tab')
+        w.optionsDialog.hide()
 
     # ── Run all steps ──────────────────────────────────────────
     def run_steps():
