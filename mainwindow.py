@@ -404,6 +404,7 @@ class MainWindow(QMainWindow):
         self.tw_romsList.itemDoubleClicked.connect(self._downloadNowContextMenu)
         self.le_filter.textChanged.connect(self._filterTableWidget)
         self.download_panel.downloadRequested.connect(self._launchRomsDownload)
+        self.download_panel.downloadPauseRequested.connect(self._cancelDownload)
         self.pb_view_list.toggled.connect(lambda on: self._switch_view("list") if on else None)
         self.pb_view_grid.toggled.connect(lambda on: self._switch_view("grid") if on else None)
         self.game_grid.romDoubleClicked.connect(self._downloadRomByName)
@@ -1221,6 +1222,7 @@ class MainWindow(QMainWindow):
         self.download_total_count = len(items)
         self.download_completed_count = 0
         self.download_failed = False
+        self._download_paused = False
         self._active_rom_name = None
 
         # Pre-populate panel with all queued items
@@ -1279,17 +1281,21 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(0, self._launchRomsDownload)
 
     def _onDownloadCancelled(self):
-        self.download_failed = True
+        self._download_paused = True
         if self._active_rom_name:
             self.download_panel.cancel_item(self._active_rom_name)
 
     def _onDownloadThreadFinished(self):
+        was_paused = self._download_paused
         self.download_thread = None
         self.download_worker = None
         self._active_rom_name = None
+        self._download_paused = False
         self._updateStatusbarQueueText()
         self._tab_detail.setChecked(True)   # auto-switch back to details when done
-        if not self.download_failed:
+        if was_paused:
+            self.statusBar().showMessage("Download pausado. Clique ▶ para continuar.", 5000)
+        elif not self.download_failed:
             self.statusBar().showMessage(
                 f"{fmt_count(self.download_completed_count)} baixados.", 5000
             )
