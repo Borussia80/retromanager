@@ -1,246 +1,253 @@
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThreadPool
-from PyQt6.QtGui import QColor, QPainter, QPixmap, QFont, QBrush
+from PyQt6.QtCore import (
+    Qt, QAbstractListModel, QModelIndex, QSize,
+    QRect, QSortFilterProxyModel, QThreadPool, pyqtSignal,
+)
+from PyQt6.QtGui import (
+    QColor, QPainter, QPixmap, QFont, QBrush, QPen, QPainterPath,
+)
 from PyQt6.QtWidgets import (
-    QScrollArea, QWidget, QGridLayout, QVBoxLayout, QLabel, QFrame,
+    QListView, QStyledItemDelegate, QAbstractItemView, QStyle,
 )
 
 from platform_icons import PLATFORM_STYLE, parse_title_tags
 from thumbnail_cache import ThumbnailFetcher, load_cached_path
 
-CARD_W = 140
-THUMB_W = 140
-THUMB_H = 160
-MAX_GRID_ITEMS = 500
+CARD_W   = 150
+CARD_H   = 220
+THUMB_H  = 165
+SPACING  =  10
+
+# Custom roles
+_ROLE_ROM      = Qt.ItemDataRole.UserRole       # str  — rom_name
+_ROLE_DL       = Qt.ItemDataRole.UserRole + 1   # bool — downloaded
+_ROLE_PX       = Qt.ItemDataRole.UserRole + 2   # QPixmap | None
+_ROLE_PLATFORM = Qt.ItemDataRole.UserRole + 3   # str  — platform (same for all rows)
 
 
-class GameCardWidget(QFrame):
-    doubleClicked = pyqtSignal(str)  # rom_name
+# ── Model ──────────────────────────────────────────────────────────────────────
 
-    def __init__(self, rom_name: str, platform: str, parent=None):
+class RomGridModel(QAbstractListModel):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self._rom_name = rom_name
+        self._platform: str = ""
+        self._items: list[dict] = []   # {"name": str, "downloaded": bool, "pixmap": QPixmap|None}
+
+    def load(self, platform: str, names: list[str], downloaded: set[str]):
+        self.beginResetModel()
         self._platform = platform
-        clean, _ = parse_title_tags(rom_name)
+        self._items = [
+            {"name": n, "downloaded": n in downloaded, "pixmap": None}
+            for n in names
+        ]
+        self.endResetModel()
 
-        self.setFixedWidth(CARD_W)
-        self.setFrameShape(QFrame.Shape.NoFrame)
-        self.setStyleSheet("""
-            GameCardWidget {
-                background: #161b27;
-                border: 1px solid #2e3a52;
-                border-radius: 6px;
-            }
-            GameCardWidget:hover {
-                border-color: #4f8ef7;
-                background: #1a2035;
-            }
-        """)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+    def rowCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self._items)
 
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 6)
-        lay.setSpacing(4)
+    def data(self, index: QModelIndex, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid() or not (0 <= index.row() < len(self._items)):
+            return None
+        item = self._items[index.row()]
+        if role in (Qt.ItemDataRole.DisplayRole, _ROLE_ROM):
+            return item["name"]
+        if role == _ROLE_DL:
+            return item["downloaded"]
+        if role == _ROLE_PX:
+            return item["pixmap"]
+        if role == _ROLE_PLATFORM:
+            return self._platform
+        return None
 
-        self._thumb = QLabel()
-        self._thumb.setFixedSize(THUMB_W, THUMB_H)
-        self._thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._thumb.setStyleSheet(
-            "background:#0f1117;border-radius:6px 6px 0 0;border:none;"
+    def set_thumbnail(self, rom_name: str, pixmap: QPixmap):
+        for i, item in enumerate(self._items):
+            if item["name"] == rom_name:
+                item["pixmap"] = pixmap
+                idx = self.index(i)
+                self.dataChanged.emit(idx, idx, [_ROLE_PX])
+                return
+
+    def platform(self) -> str:
+        return self._platform
+
+
+# ── Proxy filter ───────────────────────────────────────────────────────────────
+
+class _RomFilterProxy(QSortFilterProxyModel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._keywords: list[str] = []
+        self._region: str | None = None
+
+    def set_filter(self, keywords: list[str], region: str | None):
+        self._keywords = [k.lower() for k in keywords]
+        self._region = region
+        self.invalidateFilter()
+
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
+        idx = self.sourceModel().index(source_row, 0, source_parent)
+        name = (idx.data(Qt.ItemDataRole.DisplayRole) or "").lower()
+        if self._region and f"({self._region.lower()})" not in name:
+            return False
+        if self._keywords and not all(kw in name for kw in self._keywords):
+            return False
+        return True
+
+
+# ── Delegate ───────────────────────────────────────────────────────────────────
+
+class _GameCardDelegate(QStyledItemDelegate):
+    _TITLE_H = CARD_H - THUMB_H
+
+    def sizeHint(self, option, index) -> QSize:
+        return QSize(CARD_W, CARD_H)
+
+    def paint(self, painter: QPainter, option, index: QModelIndex):
+        painter.save()
+        r: QRect = option.rect
+
+        # Card background + border
+        is_selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        is_hover    = bool(option.state & QStyle.StateFlag.State_MouseOver)
+        bg     = QColor("#1e2d4a" if is_selected else "#1a2035" if is_hover else "#161b27")
+        border = QColor("#4f8ef7" if (is_selected or is_hover) else "#2e3a52")
+
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        path = QPainterPath()
+        path.addRoundedRect(r.adjusted(1, 1, -1, -1), 6, 6)
+        painter.fillPath(path, QBrush(bg))
+        painter.setPen(QPen(border, 1))
+        painter.drawPath(path)
+
+        # Thumbnail
+        thumb_rect = QRect(r.x(), r.y(), r.width(), THUMB_H)
+        px: QPixmap | None = index.data(_ROLE_PX)
+        if px and not px.isNull():
+            scaled = px.scaled(
+                thumb_rect.width(), thumb_rect.height(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            tx = thumb_rect.x() + (thumb_rect.width() - scaled.width()) // 2
+            ty = thumb_rect.y() + (thumb_rect.height() - scaled.height()) // 2
+            painter.setClipRect(thumb_rect)
+            painter.drawPixmap(tx, ty, scaled)
+            painter.setClipping(False)
+        else:
+            self._draw_placeholder(painter, thumb_rect, index.data(_ROLE_PLATFORM) or "")
+
+        # Downloaded badge
+        if index.data(_ROLE_DL):
+            bw, bh = 22, 22
+            bx = r.right() - bw - 4
+            by = r.top() + 4
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(QColor("#1a3a26")))
+            painter.drawEllipse(bx, by, bw, bh)
+            f = QFont()
+            f.setPointSize(10)
+            f.setBold(True)
+            painter.setFont(f)
+            painter.setPen(QColor("#34c97e"))
+            painter.drawText(QRect(bx, by, bw, bh), Qt.AlignmentFlag.AlignCenter, "✓")
+
+        # Title
+        name = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        clean, _ = parse_title_tags(name)
+        title_rect = QRect(r.x() + 4, r.y() + THUMB_H + 3, r.width() - 8, self._TITLE_H - 6)
+        f2 = QFont()
+        f2.setPointSize(9)
+        painter.setFont(f2)
+        painter.setPen(QColor("#a9b4cc"))
+        painter.drawText(
+            title_rect,
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter |
+            Qt.TextFlag.TextWordWrap,
+            clean,
         )
-        self._draw_placeholder()
-        lay.addWidget(self._thumb)
 
-        lbl = QLabel(clean)
-        lbl.setWordWrap(True)
-        lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-        lbl.setStyleSheet(
-            "font-size:10px;color:#a9b4cc;background:transparent;"
-            "border:none;padding:0 4px;"
-        )
-        lbl.setFixedHeight(36)
-        lay.addWidget(lbl)
+        painter.restore()
 
-    def _draw_placeholder(self):
-        style = PLATFORM_STYLE.get(self._platform, {"abbr": "?", "color": "#3d4f6e"})
-        px = QPixmap(THUMB_W, THUMB_H)
-        px.fill(QColor("#0f1117"))
-        p = QPainter(px)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    @staticmethod
+    def _draw_placeholder(painter: QPainter, rect: QRect, platform: str):
+        style = PLATFORM_STYLE.get(platform, {"abbr": "?", "color": "#3d4f6e"})
+        painter.fillRect(rect, QColor("#0f1117"))
         bg = QColor(style["color"])
         bg.setAlpha(22)
-        p.setBrush(QBrush(bg))
-        p.setPen(Qt.PenStyle.NoPen)
-        cx, cy = THUMB_W // 2, THUMB_H // 2
-        p.drawEllipse(cx - 30, cy - 30, 60, 60)
-        p.setPen(QColor(style["color"]))
+        painter.setBrush(QBrush(bg))
+        painter.setPen(Qt.PenStyle.NoPen)
+        cx = rect.x() + rect.width() // 2
+        cy = rect.y() + rect.height() // 2
+        painter.drawEllipse(cx - 30, cy - 30, 60, 60)
         f = QFont()
         f.setPointSize(15)
         f.setBold(True)
-        p.setFont(f)
-        p.drawText(px.rect(), Qt.AlignmentFlag.AlignCenter, style["abbr"])
-        p.end()
-        self._thumb.setPixmap(px)
-
-    def set_thumbnail(self, path: str):
-        src = QPixmap(path)
-        if src.isNull():
-            return
-        scaled = src.scaled(
-            THUMB_W, THUMB_H,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        canvas = QPixmap(THUMB_W, THUMB_H)
-        canvas.fill(QColor("#0f1117"))
-        p = QPainter(canvas)
-        p.drawPixmap(
-            (THUMB_W - scaled.width()) // 2,
-            (THUMB_H - scaled.height()) // 2,
-            scaled,
-        )
-        p.end()
-        self._thumb.setPixmap(canvas)
-
-    def set_downloaded(self, downloaded: bool):
-        if not downloaded:
-            return
-        px = self._thumb.pixmap()
-        if px is None or px.isNull():
-            return
-        p = QPainter(px)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        badge_w, badge_h, radius = 22, 22, 11
-        bx = THUMB_W - badge_w - 4
-        by = 4
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor("#1a3a26"))
-        p.drawRoundedRect(bx, by, badge_w, badge_h, radius, radius)
-        f = QFont()
-        f.setPointSize(10)
-        f.setBold(True)
-        p.setFont(f)
-        p.setPen(QColor("#34c97e"))
-        from PyQt6.QtCore import QRect
-        p.drawText(QRect(bx, by, badge_w, badge_h), Qt.AlignmentFlag.AlignCenter, "✓")
-        p.end()
-        self._thumb.setPixmap(px)
-
-    def mouseDoubleClickEvent(self, event):
-        self.doubleClicked.emit(self._rom_name)
-        super().mouseDoubleClickEvent(event)
+        painter.setFont(f)
+        painter.setPen(QColor(style["color"]))
+        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, style["abbr"])
 
 
-class GameGridWidget(QScrollArea):
-    romDoubleClicked = pyqtSignal(str)
+# ── View ───────────────────────────────────────────────────────────────────────
 
-    _SPACING = 12
-    _MARGIN = 16
+class GameGridWidget(QListView):
+    """Virtualised ROM grid — no per-card QWidget; delegate paints directly."""
+
+    romDoubleClicked = pyqtSignal(str)   # rom_name
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWidgetResizable(True)
+        self._source = RomGridModel(self)
+        self._proxy  = _RomFilterProxy(self)
+        self._proxy.setSourceModel(self._source)
+        self.setModel(self._proxy)
+        self.setItemDelegate(_GameCardDelegate(self))
+
+        self.setViewMode(QListView.ViewMode.IconMode)
+        self.setFlow(QListView.Flow.LeftToRight)
+        self.setWrapping(True)
+        self.setResizeMode(QListView.ResizeMode.Adjust)
+        self.setUniformItemSizes(True)
+        self.setSpacing(SPACING)
+        self.setGridSize(QSize(CARD_W + SPACING, CARD_H + SPACING))
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setStyleSheet("QScrollArea{border:none;background:#0f1117;}")
+        self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.setMouseTracking(True)
+        self.setStyleSheet("QListView { background:#0f1117; border:none; outline:none; }")
 
-        self._container = QWidget()
-        self._container.setStyleSheet("background:#0f1117;")
-        self._grid = QGridLayout(self._container)
-        self._grid.setContentsMargins(
-            self._MARGIN, self._MARGIN, self._MARGIN, self._MARGIN
-        )
-        self._grid.setSpacing(self._SPACING)
-        self._grid.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        self.setWidget(self._container)
-
-        self._cards: dict[str, GameCardWidget] = {}
-        self._platform = ""
-        self._downloaded_set: set[str] = set()
-        self._cols = 4
-
+        self.doubleClicked.connect(self._on_double_clicked)
         self._pool = QThreadPool.globalInstance()
         self._pool.setMaxThreadCount(4)
 
-        self._reflow_timer = QTimer(self)
-        self._reflow_timer.setSingleShot(True)
-        self._reflow_timer.setInterval(120)
-        self._reflow_timer.timeout.connect(self._reflow)
+    # ── Public API (same surface as old GameGridWidget) ────────────────────────
 
-    # ── Public API ──────────────────────────────────────────
+    def load(self, platform: str, rom_names: list[str], downloaded_set: set | None = None):
+        self._source.load(platform, rom_names, downloaded_set or set())
 
-    def load(self, platform: str, rom_names: list[str], downloaded_set: set[str] | None = None):
-        self._platform = platform
-        self._downloaded_set = downloaded_set or set()
-
-        while self._grid.count():
-            item = self._grid.takeAt(0)
-            if w := item.widget():
-                w.deleteLater()
-        self._cards.clear()
-
-        subset = rom_names[:MAX_GRID_ITEMS]
-        cols = self._cols
-
-        for i, name in enumerate(subset):
-            card = GameCardWidget(name, platform)
-            card.doubleClicked.connect(self.romDoubleClicked)
-            self._grid.addWidget(card, i // cols, i % cols)
-            self._cards[name] = card
+        # Pre-load cached thumbnails, enqueue fetches for the rest
+        for name in rom_names:
             if path := load_cached_path(platform, name):
-                card.set_thumbnail(path)
-                card.set_downloaded(name in self._downloaded_set)
-            elif name in self._downloaded_set:
-                card.set_downloaded(True)
-
-        if len(rom_names) > MAX_GRID_ITEMS:
-            note = QLabel(
-                f"Mostrando {MAX_GRID_ITEMS:,} de {len(rom_names):,} ROMs — "
-                "use a busca para filtrar."
-            )
-            note.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            note.setStyleSheet(
-                "color:#3d4f6e;font-size:11px;padding:8px;"
-                "background:transparent;border:none;"
-            )
-            self._grid.addWidget(note, len(subset) // cols + 1, 0, 1, cols)
-
-        # Fetch thumbnails that aren't cached yet
-        for name in subset:
-            if not load_cached_path(platform, name):
+                px = QPixmap(path)
+                if not px.isNull():
+                    self._source.set_thumbnail(name, px)
+            else:
                 fetcher = ThumbnailFetcher(platform, name)
-                fetcher.signals.done.connect(self._on_done)
+                fetcher.signals.done.connect(self._on_thumbnail_done)
                 self._pool.start(fetcher)
 
     def apply_filter(self, keywords: list[str], region: str | None):
-        for name, card in self._cards.items():
-            target = name.lower()
-            show = True
-            if region and f"({region.lower()})" not in target:
-                show = False
-            elif keywords and not all(kw in target for kw in keywords):
-                show = False
-            card.setVisible(show)
+        self._proxy.set_filter(keywords, region)
 
-    # ── Internal ────────────────────────────────────────────
+    # ── Internal ──────────────────────────────────────────────────────────────
 
-    def _on_done(self, platform: str, rom_name: str, path: str):
-        if platform != self._platform:
+    def _on_double_clicked(self, proxy_index: QModelIndex):
+        src = self._proxy.mapToSource(proxy_index)
+        name = self._source.data(src, _ROLE_ROM)
+        if name:
+            self.romDoubleClicked.emit(name)
+
+    def _on_thumbnail_done(self, platform: str, rom_name: str, path: str):
+        if platform != self._source.platform():
             return
-        if card := self._cards.get(rom_name):
-            card.set_thumbnail(path)
-            card.set_downloaded(rom_name in self._downloaded_set)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._reflow_timer.start()
-
-    def _reflow(self):
-        if not self._cards:
-            return
-        available = self.viewport().width() - self._MARGIN * 2
-        new_cols = max(2, available // (CARD_W + self._SPACING))
-        if new_cols == self._cols:
-            return
-        self._cols = new_cols
-        names = list(self._cards.keys())
-        for i, name in enumerate(names):
-            self._grid.addWidget(self._cards[name], i // new_cols, i % new_cols)
+        px = QPixmap(path)
+        if not px.isNull():
+            self._source.set_thumbnail(rom_name, px)
