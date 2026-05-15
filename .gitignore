@@ -5,3 +5,4 @@ __pycache__/
 *.dat
 *.bak
 .DS_Store
+screenshots/
