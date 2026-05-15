@@ -753,14 +753,18 @@ class MainWindow(QMainWindow):
         keywords = self.le_filter.text().strip().lower().split()
         region = self._selectedRegion()
         visible = 0
-        for i in range(self.tw_romsList.rowCount()):
-            it = self.tw_romsList.item(i, 0)
-            name = it.text()
-            shortname = it.data(Qt.ItemDataRole.UserRole + 3) or ""
-            show = self._romMatchesFilters(name, keywords, region, shortname)
-            self.tw_romsList.setRowHidden(i, not show)
-            if show:
-                visible += 1
+        self.tw_romsList.setUpdatesEnabled(False)
+        try:
+            for i in range(self.tw_romsList.rowCount()):
+                it = self.tw_romsList.item(i, 0)
+                name = it.text()
+                shortname = it.data(Qt.ItemDataRole.UserRole + 3) or ""
+                show = self._romMatchesFilters(name, keywords, region, shortname)
+                self.tw_romsList.setRowHidden(i, not show)
+                if show:
+                    visible += 1
+        finally:
+            self.tw_romsList.setUpdatesEnabled(True)
         self.game_grid.apply_filter(keywords, region)
 
         if visible == 0 and self.tw_romsList.rowCount() > 0:
