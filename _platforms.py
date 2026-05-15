@@ -10,18 +10,36 @@ class PlatformsHelper():
     self._platformsCache = {}
     if os.path.exists(PLATFORMS_CACHE_FILENAME):
       try:
-        with open(PLATFORMS_CACHE_FILENAME, 'r', encoding='utf-8') as fp: self._platformsCache = json.load(fp)
+        with open(PLATFORMS_CACHE_FILENAME, 'r', encoding='utf-8') as fp:
+          data = json.load(fp)
+        if not isinstance(data, dict) or not all(isinstance(v, dict) for v in data.values()):
+          raise ValueError("Cache structure invalid")
+        self._platformsCache = data
         DebugHelper.print(DebugType.TYPE_INFO, f"<{PLATFORMS_CACHE_FILENAME}> sucessfully loaded!", "PLATFORMS")
       except json.JSONDecodeError:
         self._read_legacy_pickle()
-      except Exception as e: DebugHelper.print(DebugType.TYPE_ERROR, f"Error: {list(e.args)}", "EXCEPTION")
+      except ValueError as e:
+        DebugHelper.print(DebugType.TYPE_ERROR, f"Cache inválido, ignorando: {e}", "PLATFORMS")
+        self._try_delete_bad_cache()
+      except Exception as e:
+        DebugHelper.print(DebugType.TYPE_ERROR, f"Error: {list(e.args)}", "EXCEPTION")
 
 
   def _read_legacy_pickle(self):
     try:
-      with open(PLATFORMS_CACHE_FILENAME, 'rb') as fp: self._platformsCache = pickle.load(fp)
+      with open(PLATFORMS_CACHE_FILENAME, 'rb') as fp:
+        self._platformsCache = pickle.load(fp)
       DebugHelper.print(DebugType.TYPE_INFO, f"<{PLATFORMS_CACHE_FILENAME}> legacy cache loaded!", "PLATFORMS")
-    except Exception as e: DebugHelper.print(DebugType.TYPE_ERROR, f"Error: {list(e.args)}", "EXCEPTION")
+    except Exception as e:
+      DebugHelper.print(DebugType.TYPE_ERROR, f"Error: {list(e.args)}", "EXCEPTION")
+      self._try_delete_bad_cache()
+
+  def _try_delete_bad_cache(self):
+    try:
+      os.remove(PLATFORMS_CACHE_FILENAME)
+      DebugHelper.print(DebugType.TYPE_WARNING, "Cache corrompido removido.", "PLATFORMS")
+    except OSError:
+      pass
 
   
   def platformsCount(self) -> int:
@@ -44,8 +62,11 @@ class PlatformsHelper():
     return list(self._platformsCache[platform_name].keys())[index]
 
 
-  def getRom(self, platform_name: str, rom_name: str) -> dict:
-    return self._platformsCache[platform_name][rom_name]
+  def getRom(self, platform_name: str, rom_name: str) -> dict | None:
+    try:
+      return self._platformsCache[platform_name][rom_name]
+    except KeyError:
+      return None
 
 
   def getRoms(self, platform_name: str):
