@@ -17,6 +17,16 @@ class LutrisHelper:
 
     def __init__(self):
         self._exe: str | None = shutil.which("lutris")
+        if not self._exe:
+            # Flatpak wrapper locations (system and user)
+            for prefix in (
+                Path("/var/lib/flatpak/exports/bin"),
+                Path.home() / ".local/share/flatpak/exports/bin",
+            ):
+                candidate = prefix / "net.lutris.Lutris"
+                if candidate.exists():
+                    self._exe = str(candidate)
+                    break
         self._db: Path | None = None
         for loc in _DB_CANDIDATES:
             if loc.exists():

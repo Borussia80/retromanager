@@ -72,6 +72,16 @@ class RetroArchHelper:
                 if c.exists():
                     self._exe = str(c)
                     break
+        if not self._exe:
+            # Flatpak wrapper locations (system and user)
+            for prefix in (
+                Path("/var/lib/flatpak/exports/bin"),
+                Path.home() / ".local/share/flatpak/exports/bin",
+            ):
+                candidate = prefix / "org.libretro.RetroArch"
+                if candidate.exists():
+                    self._exe = str(candidate)
+                    break
 
     @property
     def detected(self) -> bool:

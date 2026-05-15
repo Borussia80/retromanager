@@ -24,10 +24,7 @@ finish-args:
   - --share=network
   - --filesystem=home
   - --talk-name=org.freedesktop.Notifications
-  # Allow finding host RPM-installed binaries (retroarch, lutris)
-  - --filesystem=/usr:ro
-  - --filesystem=/usr/local:ro
-  # Allow finding Flatpak-installed app wrappers (org.libretro.RetroArch, net.lutris.Lutris)
+  # Allow finding Flatpak app wrappers (org.libretro.RetroArch, net.lutris.Lutris)
   - --filesystem=/var/lib/flatpak/exports/bin:ro
   - --filesystem=xdg-data/flatpak/exports/bin:ro
 
@@ -122,8 +119,6 @@ modules:
       - |
         cat > /app/bin/retromanager << 'WRAPPER'
         #!/usr/bin/env bash
-        # Expose host RPM and Flatpak binaries to shutil.which() inside the sandbox
-        export PATH="/usr/bin:/usr/local/bin:/var/lib/flatpak/exports/bin:$HOME/.local/share/flatpak/exports/bin:$PATH"
         exec python3 /app/lib/retromanager/app.pyw "$@"
         WRAPPER
         chmod +x /app/bin/retromanager
