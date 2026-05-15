@@ -1369,27 +1369,48 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────────────
 
     def _checkUpdates(self, at_launch: bool = False):
-        def ask():
-            ans = QMessageBox.question(
-                self, "Atualização disponível",
-                f"Uma atualização está disponível!\n\n"
-                f"Atual: {self.updater.currentVersionString()}\n"
-                f"Mais recente: {self.updater.lastestVersionString()}\n\n"
-                "Deseja atualizar agora?"
-            )
-            if ans == QMessageBox.StandardButton.Yes:
-                QMessageBox.warning(self, "Atualizando…", "Ainda não implementado.")
-            else:
-                self.statusbar_update.setText("Nova versão disponível!")
+        if at_launch and not self.settings.get('check_updates'):
+            return
 
-        update_available = self.updater.updateAvailable() if self.settings.get('check_updates') else False
+        class _Worker(QObject):
+            done = pyqtSignal(bool)
 
-        if at_launch and self.settings.get('check_updates') and update_available:
-            ask()
-        elif at_launch and self.settings.get('check_updates') and not update_available:
+            def __init__(self, updater):
+                super().__init__()
+                self._updater = updater
+
+            def run(self):
+                self.done.emit(self._updater.updateAvailable())
+
+        self._update_thread = QThread(self)
+        self._update_worker = _Worker(self.updater)
+        self._update_worker.moveToThread(self._update_thread)
+        self._update_thread.started.connect(self._update_worker.run)
+        self._update_worker.done.connect(
+            lambda avail: self._onUpdateCheckDone(avail, at_launch)
+        )
+        self._update_worker.done.connect(self._update_thread.quit)
+        self._update_thread.finished.connect(self._update_thread.deleteLater)
+        self._update_thread.start()
+
+    def _onUpdateCheckDone(self, update_available: bool, at_launch: bool):
+        if update_available:
+            self._askUpdate()
+        elif at_launch:
             self.statusbar_update.setText("Atualizado.")
-        elif not at_launch and update_available:
-            ask()
-        elif not at_launch and not update_available:
+        else:
             QMessageBox.information(self, "Atualização", "Você está atualizado.")
             self.statusbar_update.setText("Atualizado.")
+
+    def _askUpdate(self):
+        ans = QMessageBox.question(
+            self, "Atualização disponível",
+            f"Uma atualização está disponível!\n\n"
+            f"Atual: {self.updater.currentVersionString()}\n"
+            f"Mais recente: {self.updater.lastestVersionString()}\n\n"
+            "Deseja atualizar agora?"
+        )
+        if ans == QMessageBox.StandardButton.Yes:
+            QMessageBox.warning(self, "Atualizando…", "Ainda não implementado.")
+        else:
+            self.statusbar_update.setText("Nova versão disponível!")
