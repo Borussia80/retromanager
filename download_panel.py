@@ -14,6 +14,13 @@ def _fmt_bytes(b: int) -> str:
     return f"{b / 1_048_576:.1f} MB"
 
 
+def _fmt_eta(seconds: int) -> str:
+    if seconds < 60:
+        return f"{seconds}s"
+    m, s = divmod(seconds, 60)
+    return f"{m}m {s:02d}s"
+
+
 class DownloadItemWidget(QWidget):
     def __init__(self, rom_name: str, parent=None):
         super().__init__(parent)
@@ -60,9 +67,13 @@ class DownloadItemWidget(QWidget):
         if total_bytes > 0:
             self.bar.setValue(int(bytes_done / total_bytes * 1000))
             pct = int(bytes_done / total_bytes * 100)
+            eta = ""
+            if speed > 0:
+                remaining = total_bytes - bytes_done
+                eta = f"  ·  ETA {_fmt_eta(int(remaining / speed))}"
             self.lbl_meta.setText(
                 f"{pct}%  ·  {_fmt_bytes(bytes_done)} / {_fmt_bytes(total_bytes)}"
-                f"  ·  {_fmt_bytes(int(speed))}/s"
+                f"  ·  {_fmt_bytes(int(speed))}/s{eta}"
             )
         else:
             self.lbl_meta.setText(f"{_fmt_bytes(bytes_done)}  ·  {_fmt_bytes(int(speed))}/s")
