@@ -39,12 +39,15 @@ retromanager is being shaped into a retro library manager: simple browsing, reli
 - [x] Avoid duplicate queue entries.
 - [x] Add cancel support.
 - [x] Sort game list by column.
+- [x] Persist download queue across app restarts (queue.json in cache dir).
 - [ ] Add retry support for failed downloads.
 - [ ] Resume interrupted downloads (.part files).
 
 ## Phase 3 - Local Library
 
 - [x] Detect already downloaded ROMs and highlight them in list and grid.
+- [x] Favorites / wishlist: star any ROM from the context menu, persisted to disk.
+- [x] Dedicated "Favoritos" view at the top of the platform sidebar.
 - [ ] Organize files by platform folder.
 - [ ] Import existing folders into the library.
 - [ ] Re-check hashes on demand.

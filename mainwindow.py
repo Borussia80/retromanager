@@ -1,6 +1,8 @@
 import os
 
 from PyQt6.QtCore import *
+
+_FAVORITES_KEY = "_FAVORITES_"
 from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
 
@@ -11,7 +13,8 @@ from _tools import Tools, DownloadWorker
 from _debug import *
 from download_queue import DownloadQueue
 from download_panel import DownloadQueuePanel
-from platform_icons import PlatformItemWidget, GameTitleDelegate, FormatBadgeDelegate
+from platform_icons import PlatformItemWidget, FavoritesItemWidget, GameTitleDelegate, FormatBadgeDelegate
+from favorites_manager import FavoritesManager
 from error_dialog import DownloadErrorDialog
 from game_grid import GameGridWidget
 from options import Options
@@ -41,6 +44,7 @@ class MainWindow(QMainWindow):
 
         self._retroarch = RetroArchHelper()
         self._lutris = LutrisHelper()
+        self._favorites = FavoritesManager()
 
         self.filter_timer = QTimer(self)
         self.filter_timer.setSingleShot(True)
@@ -58,6 +62,7 @@ class MainWindow(QMainWindow):
         self._checkUpdates(at_launch=True)
         self._loadPlatformsList()
         self._showEmptyTableMessage("Selecione uma plataforma à esquerda para explorar.")
+        self._restoreQueueToPanel()
 
     # ──────────────────────────────────────────────
     # UI construction
@@ -282,6 +287,13 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────────────
 
     def _loadPlatformsList(self):
+        # Favorites pseudo-platform at the top
+        fav_item = QListWidgetItem(self.lw_platforms)
+        fav_item.setData(Qt.ItemDataRole.UserRole, _FAVORITES_KEY)
+        fav_item.setSizeHint(QSize(0, 52))
+        self._fav_widget = FavoritesItemWidget(self._favorites.count())
+        self.lw_platforms.setItemWidget(fav_item, self._fav_widget)
+
         available = 0
         total = 0
         for name in self.platforms.getPlatforms():
@@ -311,6 +323,11 @@ class MainWindow(QMainWindow):
 
     def _onListwidgetSelectionChanged(self, item: QListWidgetItem):
         platform_name = item.data(Qt.ItemDataRole.UserRole) or item.text()
+
+        if platform_name == _FAVORITES_KEY:
+            self._loadFavoritesView()
+            return
+
         self.table_placeholder_active = False
         self.tw_romsList.setSortingEnabled(False)
         self.tw_romsList.setRowCount(0)
@@ -321,7 +338,10 @@ class MainWindow(QMainWindow):
             rom_names.append(rom_name)
             rom_name_item = QTableWidgetItem(rom_name)
             rom_name_item.setToolTip(self._buildRomSummary(platform_name, rom_name, rom_data))
+            rom_name_item.setData(Qt.ItemDataRole.UserRole,     platform_name)
             rom_name_item.setData(Qt.ItemDataRole.UserRole + 1, rom_name in downloaded_set)
+            rom_name_item.setData(Qt.ItemDataRole.UserRole + 2,
+                                  self._favorites.is_favorite(platform_name, rom_name))
 
             rom_size_item = QTableWidgetItem(Tools.convertSizeToReadable(rom_data['size']))
             rom_size_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -355,6 +375,89 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             f"{platform_name}: {len(rom_names):,} itens", 5000
         )
+
+    def _loadFavoritesView(self):
+        self.table_placeholder_active = False
+        self.tw_romsList.setSortingEnabled(False)
+        self.tw_romsList.setRowCount(0)
+
+        favs = self._favorites.all()
+        downloaded_set = self._scan_downloaded()
+
+        if not favs:
+            self._showEmptyTableMessage("Nenhum favorito ainda. Clique com o botão direito em um jogo e escolha Favoritar.")
+            return
+
+        for i, (platform, rom_name) in enumerate(favs):
+            rom_data = self.platforms.getRom(platform, rom_name)
+            if not rom_data:
+                continue
+
+            rom_name_item = QTableWidgetItem(rom_name)
+            rom_name_item.setData(Qt.ItemDataRole.UserRole,     platform)
+            rom_name_item.setData(Qt.ItemDataRole.UserRole + 1, rom_name in downloaded_set)
+            rom_name_item.setData(Qt.ItemDataRole.UserRole + 2, True)
+
+            rom_size_item = QTableWidgetItem(Tools.convertSizeToReadable(rom_data['size']))
+            rom_size_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            rom_format_item = QTableWidgetItem(rom_data['format'].upper())
+            rom_format_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            rom_format_item.setForeground(QColor("#6b7a99"))
+
+            rom_md5_item   = QTableWidgetItem(rom_data['md5'])
+            rom_crc32_item = QTableWidgetItem(rom_data['crc32'].upper())
+            rom_sha1_item  = QTableWidgetItem(rom_data['sha1'])
+            for it in (rom_md5_item, rom_crc32_item, rom_sha1_item):
+                it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                it.setForeground(QColor("#6b7a99"))
+
+            self.tw_romsList.insertRow(i)
+            self.tw_romsList.setItem(i, 0, rom_name_item)
+            self.tw_romsList.setItem(i, 1, rom_size_item)
+            self.tw_romsList.setItem(i, 2, rom_format_item)
+            self.tw_romsList.setItem(i, 3, rom_md5_item)
+            self.tw_romsList.setItem(i, 4, rom_crc32_item)
+            self.tw_romsList.setItem(i, 5, rom_sha1_item)
+
+        self.tw_romsList.setSortingEnabled(True)
+        self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
+        self._applyTableFilter()
+        self.statusBar().showMessage(f"Favoritos: {len(favs):,} itens", 5000)
+
+    def _toggleFavorite(self, rom_name: str | None):
+        if not rom_name:
+            return
+        # Platform is stored in UserRole of the selected table row
+        rows = self.tw_romsList.selectionModel().selectedRows()
+        if not rows:
+            return
+        it = self.tw_romsList.item(rows[0].row(), 0)
+        platform = it.data(Qt.ItemDataRole.UserRole) if it else None
+        if not platform or platform == _FAVORITES_KEY:
+            return
+
+        now_fav = self._favorites.toggle(platform, rom_name)
+
+        # Update all matching rows in the current table view
+        for i in range(self.tw_romsList.rowCount()):
+            row_item = self.tw_romsList.item(i, 0)
+            if row_item and row_item.text() == rom_name:
+                row_item.setData(Qt.ItemDataRole.UserRole + 2, now_fav)
+        self.tw_romsList.viewport().update()
+
+        # Refresh sidebar favorites count
+        if hasattr(self, '_fav_widget'):
+            self._fav_widget.update_count(self._favorites.count())
+
+        msg = (f"'{rom_name}' adicionado aos favoritos."
+               if now_fav else f"'{rom_name}' removido dos favoritos.")
+        self.statusBar().showMessage(msg, 3000)
+
+    def _restoreQueueToPanel(self):
+        for _, rom_name in self.download_queue.items():
+            self.download_panel.add_item(rom_name)
+        self._updateStatusbarQueueText()
 
     def _scan_downloaded(self) -> set[str]:
         """Return a set of ROM stems (filename without extension) already on disk."""
@@ -472,9 +575,24 @@ class MainWindow(QMainWindow):
         act_details.setEnabled(has_sel)
         act_details.triggered.connect(self._showSelectedRomDetails)
 
+        is_fav = False
+        if is_single and rom_name:
+            fav_platform = None
+            if is_single:
+                row_i = selected_rows[0].row()
+                fav_it = self.tw_romsList.item(row_i, 0)
+                fav_platform = fav_it.data(Qt.ItemDataRole.UserRole) if fav_it else None
+            if fav_platform and fav_platform != _FAVORITES_KEY:
+                is_fav = self._favorites.is_favorite(fav_platform, rom_name)
+
+        act_fav = QAction(("★  Desfavoritar" if is_fav else "★  Favoritar"), self)
+        act_fav.setEnabled(is_single and bool(rom_name))
+        act_fav.triggered.connect(lambda: self._toggleFavorite(rom_name))
+
         menu.addAction(act_queue)
         menu.addAction(act_now)
         menu.addSeparator()
+        menu.addAction(act_fav)
         menu.addAction(act_details)
 
         # ── RetroArch / Lutris ──────────────────────
@@ -549,7 +667,14 @@ class MainWindow(QMainWindow):
         sel = self.lw_platforms.selectedItems()
         if not sel:
             return None
-        return sel[0].data(Qt.ItemDataRole.UserRole)
+        p = sel[0].data(Qt.ItemDataRole.UserRole)
+        if p == _FAVORITES_KEY:
+            rows = self.tw_romsList.selectionModel().selectedRows()
+            if rows:
+                it = self.tw_romsList.item(rows[0].row(), 0)
+                return it.data(Qt.ItemDataRole.UserRole) if it else None
+            return None
+        return p
 
     def _openInRetroArch(self, rom_name: str | None):
         if not rom_name:

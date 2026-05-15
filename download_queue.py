@@ -1,9 +1,15 @@
+import json
+import os
+
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
 
 # Ui
 from ui.ui_DownloadQueue import Ui_DownloadQueue
+from _constants import CACHE_DIR
+
+_QUEUE_FILE = os.path.join(CACHE_DIR, "queue.json")
 
 
 
@@ -35,6 +41,7 @@ class DownloadQueue(QDialog, Ui_DownloadQueue):
     self.pbDeleteAll.clicked.connect(self._onpbDeleteAllClicked)
 
     self.queue_dict: dict[str, list[str]] = {}
+    self._load()
 
 
   def show(self, *args) -> None:
@@ -52,6 +59,7 @@ class DownloadQueue(QDialog, Ui_DownloadQueue):
         self.queue_dict[platform_name].append(rom_name)
         added += 1
     self.queue_dict[platform_name] = sorted(self.queue_dict[platform_name])
+    self._save()
     return added
 
 
@@ -61,6 +69,7 @@ class DownloadQueue(QDialog, Ui_DownloadQueue):
     self.queue_dict[platform_name].remove(rom_name)
     if not self.queue_dict[platform_name]:
       del self.queue_dict[platform_name]
+    self._save()
     self._refreshList()
 
 
@@ -106,7 +115,22 @@ class DownloadQueue(QDialog, Ui_DownloadQueue):
     self.remove(item.rom_platform, item.rom_name)
 
 
+  def _save(self):
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    with open(_QUEUE_FILE, "w") as f:
+      json.dump(self.queue_dict, f)
+
+  def _load(self):
+    try:
+      with open(_QUEUE_FILE) as f:
+        data = json.load(f)
+      if isinstance(data, dict):
+        self.queue_dict = {k: v for k, v in data.items() if isinstance(v, list)}
+    except (FileNotFoundError, json.JSONDecodeError):
+      pass
+
   def _onpbDeleteAllClicked(self, checked: bool):
-    if QMessageBox.warning(self, "Warning!", "Are you sure you want to delete the WHOLE QUEUE LIST ?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+    if QMessageBox.warning(self, "Atenção!", "Deseja remover TODOS os itens da fila?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
       self.queue_dict.clear()
+      self._save()
       self._refreshList()

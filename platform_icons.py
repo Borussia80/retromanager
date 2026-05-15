@@ -142,7 +142,8 @@ class GameTitleDelegate(QStyledItemDelegate):
             painter.fillRect(option.rect, QColor("#1e2535"))
 
         title = index.data(Qt.ItemDataRole.DisplayRole) or ""
-        downloaded = bool(index.data(Qt.ItemDataRole.UserRole + 1))
+        downloaded  = bool(index.data(Qt.ItemDataRole.UserRole + 1))
+        is_favorite = bool(index.data(Qt.ItemDataRole.UserRole + 2))
         clean, tags = parse_title_tags(title)
 
         rect = option.rect.adjusted(8, 0, -8, 0)
@@ -180,8 +181,22 @@ class GameTitleDelegate(QStyledItemDelegate):
             painter.drawText(chk_r, Qt.AlignmentFlag.AlignCenter, chk_text)
             x_right -= chk_w + 4
 
+        # Star indicator on the left edge
+        x_left = rect.left()
+        if is_favorite:
+            star_w = bfm.horizontalAdvance("★") + 4
+            star_rect = QRect(x_left, rect.top(), star_w, rect.height())
+            painter.setFont(bf)
+            painter.setPen(QColor("#ffc040"))
+            painter.drawText(
+                star_rect,
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                "★",
+            )
+            x_left += star_w + 2
+
         # Title
-        title_rect = QRect(rect.left(), rect.top(), x_right - rect.left() - 4, rect.height())
+        title_rect = QRect(x_left, rect.top(), x_right - x_left - 4, rect.height())
         painter.setFont(option.font)
         painter.setPen(QColor("#34c97e") if downloaded else QColor("#e8ecf5"))
         painter.drawText(
@@ -204,6 +219,44 @@ class GameTitleDelegate(QStyledItemDelegate):
 
     def sizeHint(self, option, index):
         return QSize(option.rect.width(), self._ROW_H)
+
+
+class FavoritesItemWidget(QWidget):
+    def __init__(self, count: int, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 6, 10, 6)
+        layout.setSpacing(10)
+
+        # Star icon badge (same size as platform icons)
+        icon = PlatformIconWidget("★", "#b8860b")
+        layout.addWidget(icon)
+
+        text_col = QVBoxLayout()
+        text_col.setSpacing(1)
+
+        lbl_name = QLabel("Favoritos")
+        lbl_name.setStyleSheet(
+            "font-size:12px;font-weight:500;color:#e8ecf5;"
+            "background:transparent;border:none;"
+        )
+
+        self._lbl_count = QLabel(self._count_text(count))
+        self._lbl_count.setStyleSheet(
+            "font-size:10px;color:#6b7a99;background:transparent;border:none;"
+        )
+
+        text_col.addWidget(lbl_name)
+        text_col.addWidget(self._lbl_count)
+        layout.addLayout(text_col)
+        layout.addStretch()
+
+    def update_count(self, count: int):
+        self._lbl_count.setText(self._count_text(count))
+
+    @staticmethod
+    def _count_text(count: int) -> str:
+        return f"{count:,} títulos" if count else "Nenhum ainda"
 
 
 class FormatBadgeDelegate(QStyledItemDelegate):
