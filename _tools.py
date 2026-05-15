@@ -67,9 +67,8 @@ class CacheGenerator():
         DebugHelper.print(DebugType.TYPE_ERROR, f"Could not fetch <{part_id}> from Archive: {e}", "CACHE")
 
 
-  def __init__(self, app: QApplication, parent: QSplashScreen) -> None:
+  def __init__(self, app: QApplication) -> None:
     self.app = app
-    self.parent = parent
     self.output_cache_json = {}
     self.threads = []
     self.workers = []
@@ -122,10 +121,8 @@ class CacheGenerator():
 
   def _updateMessage(self, platform_name: str):
     self.download_completed += 1
-    self.parent.showMessage(f"({self.download_completed}/{len(self.threads)}) [{platform_name}] completed.",
-      color=Qt.GlobalColor.white,
-      alignment=(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter)
-    )
+    DebugHelper.print(DebugType.TYPE_INFO,
+      f"({self.download_completed}/{len(self.threads)}) [{platform_name}] completed.", "CACHE")
     if self.event_loop and self.download_completed == len(self.threads):
       self.event_loop.quit()
 

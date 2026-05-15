@@ -9,10 +9,12 @@ setup_logging()
 
 # Helpers
 from _constants import *
-from _debug import *
+from _settings import SettingsHelper
+from _updater import UpdaterHelper
+from _platforms import PlatformsHelper
+from _tools import Tools, CacheGenerator
 
 # Main class
-from splashscreen import SplashScreen
 from mainwindow import MainWindow
 
 from theme import DARK_THEME
@@ -39,12 +41,19 @@ if __name__ == '__main__':
   app.setWindowIcon(_icon)
   QResource.registerResource(RESOURCES_FILE)
 
-  # Show the splashscreen and do starting stuff
-  splash = SplashScreen(app)
-  splash.show()
+  # Boot helpers
+  settings = SettingsHelper()
+  updater = UpdaterHelper()
 
-  # Initialize main window
-  mainWindow = MainWindow(splash.settings, splash.updater, splash.platforms)
+  # Build catalogue cache if missing or expired
+  if not os.path.exists(PLATFORMS_CACHE_DB) or not Tools.isCacheValid(settings.get('cache_expiration')):
+      cache = CacheGenerator(app)
+      cache.run()
+
+  platforms = PlatformsHelper()
+
+  # Initialize and show main window
+  mainWindow = MainWindow(settings, updater, platforms)
   mainWindow.show()
 
   # Execute then shutdown

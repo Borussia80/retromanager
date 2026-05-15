@@ -1,4 +1,4 @@
-# Form implementation generated from reading ui file 'd:\Python Projects\NoIntro Roms Downloader\ui\DownloadQueue.ui'
+# Form implementation generated from reading ui file 'ui/DownloadQueue.ui'
 #
 # Created by: PyQt6 UI code generator 6.4.0
 #
