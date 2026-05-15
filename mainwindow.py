@@ -68,7 +68,7 @@ class MainWindow(QMainWindow):
         self._build_statusbar()
         self._connect_signals()
 
-        self.setWindowTitle(f"retromanager {self.updater.currentVersionString()}")
+        self.setWindowTitle(f"Retromanager {self.updater.currentVersionString()}")
         self.resize(1200, 680)
 
         self._checkUpdates(at_launch=True)
@@ -154,10 +154,10 @@ class MainWindow(QMainWindow):
             self.le_filter.addAction(_search_act, QLineEdit.ActionPosition.LeadingPosition)
         filter_lay.addWidget(self.le_filter)
 
-        self.pb_eur = QPushButton("Europe")
+        self.pb_eur = QPushButton("Europa")
         self.pb_usa = QPushButton("USA")
-        self.pb_jpn = QPushButton("Japan")
-        self.pb_all = QPushButton("All")
+        self.pb_jpn = QPushButton("Japão")
+        self.pb_all = QPushButton("Todos")
         for btn in (self.pb_eur, self.pb_usa, self.pb_jpn, self.pb_all):
             btn.setCheckable(True)
             btn.setAutoExclusive(True)
@@ -506,7 +506,7 @@ class MainWindow(QMainWindow):
         self._mame_names_loading = False
         if names:
             self.statusBar().showMessage(
-                f"Nomes MAME: {len(names):,} títulos carregados.".replace(",", "."), 4000
+                f"Nomes MAME: {len(names):,} itens carregados.".replace(",", "."), 4000
             )
 
     # ──────────────────────────────────────────────
