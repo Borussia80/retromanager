@@ -179,6 +179,8 @@ class RomDetailPanel(QWidget):
         self._btn_fav.setText("★  Desfavoritar" if is_fav else "★  Favoritar")
         self._btn_fav.blockSignals(False)
         self._btn_dl.setEnabled(True)
+        self._btn_fav.setEnabled(True)
+        self._btn_archive.setVisible(True)
 
     def clear(self):
         self._platform = ""
@@ -195,6 +197,8 @@ class RomDetailPanel(QWidget):
         self._btn_fav.setText("★  Favoritar")
         self._btn_fav.blockSignals(False)
         self._btn_dl.setEnabled(False)
+        self._btn_fav.setEnabled(False)
+        self._btn_archive.setVisible(False)
 
     def sync_fav(self, is_fav: bool):
         """Update favorite button without emitting a signal."""

@@ -168,14 +168,19 @@ def run():
                     w._updateStatusbarQueueText()
                     app.processEvents()
                     break
+        w._tab_queue.setChecked(True)
+        app.processEvents()
         grab(w, '08_download_queue_panel')
-        # Clear fake queue
+        # Clear fake queue and switch back
         for item_w in list(w.download_panel._items.values()):
             item_w.deleteLater()
         w.download_panel._items.clear()
         w.download_panel._refresh_badge()
         w.download_queue.queue_dict.clear()
         w.download_queue._save()
+        w._updateStatusbarQueueText()
+        w._tab_detail.setChecked(True)
+        app.processEvents()
 
     # ── 9. Technical columns visible ───────────────────────────
     @step
@@ -269,6 +274,25 @@ def run():
         app.processEvents()
         grab(w.optionsDialog, '16_options_geral_tab')
         w.optionsDialog.hide()
+
+    # ── 17. ROM detail panel with selection ────────────────────
+    @step
+    def _():
+        for i in range(w.lw_platforms.count()):
+            item = w.lw_platforms.item(i)
+            if item and item.flags() & Qt.ItemFlag.ItemIsEnabled:
+                key = item.data(Qt.ItemDataRole.UserRole)
+                if key and key != '_FAVORITES_':
+                    w.lw_platforms.setCurrentItem(item)
+                    w._onListwidgetSelectionChanged(item)
+                    app.processEvents()
+                    if w.tw_romsList.rowCount() > 0:
+                        w.tw_romsList.selectRow(0)
+                        app.processEvents()
+                    break
+        w._tab_detail.setChecked(True)
+        app.processEvents()
+        grab(w, '17_detail_panel_selected')
 
     # ── Run all steps ──────────────────────────────────────────
     def run_steps():
