@@ -1,12 +1,16 @@
 import json
+import logging
 import os
 import pickle
 import sqlite3
 import threading
+from pathlib import Path
 
 from _constants import CACHE_DIR, PLATFORMS_CACHE_DB, PLATFORMS_CACHE_FILENAME
 from _debug import DebugHelper, DebugType
 from models import RomEntry
+
+_log = logging.getLogger("retromanager.platforms")
 
 
 _SCHEMA = """
@@ -43,9 +47,31 @@ class PlatformsHelper:
         is_new_db = not os.path.exists(PLATFORMS_CACHE_DB)
         self._db = sqlite3.connect(PLATFORMS_CACHE_DB, check_same_thread=False)
         self._db.executescript(_SCHEMA)
+        if not is_new_db:
+            self._integrity_check()
         self._fts_available = self._setup_fts()
         if is_new_db:
             self._migrate_from_json()
+
+    def _integrity_check(self) -> None:
+        """Run PRAGMA integrity_check; drop and recreate the DB if corrupted (OBS-003)."""
+        try:
+            row = self._db.execute("PRAGMA integrity_check").fetchone()
+            if row and row[0] != "ok":
+                _log.error("integrity_check falhou: %s — recriando DB", row[0])
+                self._db.close()
+                Path(PLATFORMS_CACHE_DB).unlink(missing_ok=True)
+                self._db = sqlite3.connect(PLATFORMS_CACHE_DB, check_same_thread=False)
+                self._db.executescript(_SCHEMA)
+        except sqlite3.DatabaseError as exc:
+            _log.error("DB ilegível (%s) — recriando", exc)
+            try:
+                self._db.close()
+            except Exception:
+                pass
+            Path(PLATFORMS_CACHE_DB).unlink(missing_ok=True)
+            self._db = sqlite3.connect(PLATFORMS_CACHE_DB, check_same_thread=False)
+            self._db.executescript(_SCHEMA)
 
     def _setup_fts(self) -> bool:
         """Create FTS5 virtual table and populate it if empty. Returns True if FTS5 is available."""

@@ -2,7 +2,8 @@ import sys
 import os
 
 # Startup timing — must be the very first local import
-from _bootstrap import StartupTimer, start_memory_profiling
+from _bootstrap import StartupTimer, start_memory_profiling, install_crash_hook
+install_crash_hook()
 StartupTimer.mark("_start")
 
 from PyQt6.QtCore import QResource

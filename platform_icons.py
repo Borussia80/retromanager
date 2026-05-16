@@ -353,6 +353,47 @@ class HistoryItemWidget(QWidget):
         return f"{n:,}".replace(",", ".") if n else ""
 
 
+class DownloadedItemWidget(QWidget):
+    """Sidebar item for the 'Baixados' smart collection."""
+
+    _STYLE_COUNT_IDLE = "font-size:10px;color:#6b7a99;background:transparent;border:none;"
+    _STYLE_COUNT_SEL  = "font-size:10px;color:rgba(232,236,245,180);background:transparent;border:none;"
+
+    def __init__(self, count: int = 0, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 6, 10, 6)
+        layout.setSpacing(10)
+
+        icon = PlatformIconWidget("⬇", "#2e7d32")
+        layout.addWidget(icon)
+
+        lbl_name = QLabel("Baixados")
+        lbl_name.setTextFormat(Qt.TextFormat.PlainText)
+        lbl_name.setStyleSheet(
+            "font-size:12px;font-weight:500;color:#e8ecf5;"
+            "background:transparent;border:none;"
+        )
+
+        self._lbl_count = QLabel(self._fmt_num(count))
+        self._lbl_count.setStyleSheet(self._STYLE_COUNT_IDLE)
+
+        layout.addWidget(lbl_name, 1)
+        layout.addWidget(self._lbl_count)
+
+    def update_count(self, count: int):
+        self._lbl_count.setText(self._fmt_num(count))
+
+    def set_selected(self, selected: bool):
+        self._lbl_count.setStyleSheet(
+            self._STYLE_COUNT_SEL if selected else self._STYLE_COUNT_IDLE
+        )
+
+    @staticmethod
+    def _fmt_num(n: int) -> str:
+        return f"{n:,}".replace(",", ".") if n else ""
+
+
 class FormatBadgeDelegate(QStyledItemDelegate):
     """Renders the file format (zip, 7z) as a small monospaced pill badge."""
     _BADGE_RADIUS = 3

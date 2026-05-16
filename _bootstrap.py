@@ -1,13 +1,16 @@
 """
-Bootstrap utilities: startup timing and optional memory profiling.
+Bootstrap utilities: startup timing, crash reporter, and optional memory profiling.
 
 StartupTimer is always active — marks are stored and reported via the logger.
 Memory profiling (tracemalloc + objgraph) is only useful when invoked explicitly,
 typically when DEBUG=4 is set before launching the app.
+Call install_crash_hook() once in app.pyw to catch unhandled exceptions.
 """
 
 import logging
+import sys
 import time
+import traceback
 
 log = logging.getLogger("retromanager.bootstrap")
 
@@ -50,6 +53,43 @@ def snapshot_memory(label: str = "") -> None:
     log.debug("=== Memory snapshot%s ===", tag)
     for stat in top:
         log.debug("  %s", stat)
+
+
+def install_crash_hook() -> None:
+    """Install sys.excepthook to log crashes and show a user-friendly dialog (OBS-002)."""
+    _crash_log = logging.getLogger("retromanager.crash")
+
+    def _excepthook(exc_type, exc_value, exc_tb):
+        _crash_log.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_tb))
+        tb_text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        try:
+            from PyQt6.QtWidgets import QApplication, QDialog, QVBoxLayout, QLabel, QTextEdit, QPushButton
+            from PyQt6.QtCore import Qt
+            app = QApplication.instance()
+            if app:
+                dlg = QDialog()
+                dlg.setWindowTitle("RetroManager — Erro inesperado")
+                dlg.setMinimumSize(600, 400)
+                lay = QVBoxLayout(dlg)
+                lbl = QLabel("O RetroManager encontrou um erro inesperado e precisa fechar.\n"
+                             "O erro foi registrado em ~/.cache/retromanager/logs/errors.log")
+                lbl.setWordWrap(True)
+                lbl.setAlignment(Qt.AlignmentFlag.AlignLeft)
+                tb_edit = QTextEdit()
+                tb_edit.setReadOnly(True)
+                tb_edit.setPlainText(tb_text)
+                tb_edit.setStyleSheet("font-family: monospace; font-size: 11px;")
+                btn = QPushButton("Fechar")
+                btn.clicked.connect(dlg.accept)
+                lay.addWidget(lbl)
+                lay.addWidget(tb_edit, 1)
+                lay.addWidget(btn)
+                dlg.exec()
+        except Exception:
+            pass
+        sys.__excepthook__(exc_type, exc_value, exc_tb)
+
+    sys.excepthook = _excepthook
 
 
 def check_leaks() -> None:

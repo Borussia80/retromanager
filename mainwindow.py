@@ -20,12 +20,14 @@ from download_engine import DownloadEngine
 from notifications import Notifier
 from _debug import DebugHelper, DebugType
 
-_FAVORITES_KEY = "_FAVORITES_"
-_HISTORY_KEY   = "_HISTORY_"
+_FAVORITES_KEY  = "_FAVORITES_"
+_HISTORY_KEY    = "_HISTORY_"
+_DOWNLOADED_KEY = "_DOWNLOADED_"
+_PSEUDO_KEYS    = (_FAVORITES_KEY, _HISTORY_KEY, _DOWNLOADED_KEY)
 from download_queue import DownloadQueue
 from download_panel import DownloadQueuePanel
 from platform_icons import (
-    PlatformItemWidget, FavoritesItemWidget, HistoryItemWidget,
+    PlatformItemWidget, FavoritesItemWidget, HistoryItemWidget, DownloadedItemWidget,
     GameTitleDelegate, FormatBadgeDelegate, fmt_count,
 )
 from favorites_manager import FavoritesManager
@@ -476,6 +478,13 @@ class MainWindow(QMainWindow):
         self._hist_widget = HistoryItemWidget(self._history.count())
         self.lw_platforms.setItemWidget(hist_item, self._hist_widget)
 
+        # Downloaded collection
+        dl_item = QListWidgetItem(self.lw_platforms)
+        dl_item.setData(Qt.ItemDataRole.UserRole, _DOWNLOADED_KEY)
+        dl_item.setSizeHint(QSize(0, 44))
+        self._dl_widget = DownloadedItemWidget()
+        self.lw_platforms.setItemWidget(dl_item, self._dl_widget)
+
         available = 0
         total = 0
         for name in self.platforms.getPlatforms():
@@ -542,6 +551,10 @@ class MainWindow(QMainWindow):
 
         if platform_name == _HISTORY_KEY:
             self._loadHistoryView()
+            return
+
+        if platform_name == _DOWNLOADED_KEY:
+            self._loadDownloadedView()
             return
 
         self.table_placeholder_active = False
@@ -624,7 +637,7 @@ class MainWindow(QMainWindow):
 
     def _loadAllRoms(self):
         platform = self._current_platform()
-        if not platform or platform == _FAVORITES_KEY or not self._current_platform_roms:
+        if not platform or platform in _PSEUDO_KEYS or not self._current_platform_roms:
             return
         downloaded_set = self._current_platform_downloaded
         remaining = self._current_platform_roms[self._loaded_count:]
@@ -709,6 +722,38 @@ class MainWindow(QMainWindow):
         self._applyTableFilter()
         self.statusBar().showMessage(f"Recentes: {fmt_count(len(recent))}", 5000)
 
+    def _loadDownloadedView(self):
+        self.table_placeholder_active = False
+        self._hide_chunk_banner()
+        self.tw_romsList.setSortingEnabled(False)
+        self.tw_romsList.setRowCount(0)
+
+        row_idx = 0
+        for p in self.platforms.getPlatforms():
+            d_set = library_service.scan_downloaded(self.settings, p)
+            if not d_set:
+                continue
+            for rom_name, rom_data in self.platforms.getRoms(p):
+                if rom_name not in d_set:
+                    continue
+                self._insert_rom_row(row_idx, p, rom_name, rom_data, d_set)
+                row_idx += 1
+
+        if row_idx == 0:
+            self._showTablePlaceholder(
+                "⬇",
+                "Sem ROMs baixadas",
+                "Baixe ROMs usando a fila de download.",
+            )
+            return
+
+        if hasattr(self, '_dl_widget'):
+            self._dl_widget.update_count(row_idx)
+        self.tw_romsList.setSortingEnabled(True)
+        self.tw_romsList.sortByColumn(0, Qt.SortOrder.AscendingOrder)
+        self._applyTableFilter()
+        self.statusBar().showMessage(f"Baixados: {fmt_count(row_idx)}", 5000)
+
     def _toggleFavorite(self, rom_name: str | None):
         if not rom_name:
             return
@@ -718,7 +763,7 @@ class MainWindow(QMainWindow):
             return
         it = self.tw_romsList.item(rows[0].row(), 0)
         platform = it.data(Qt.ItemDataRole.UserRole) if it else None
-        if not platform or platform in (_FAVORITES_KEY, _HISTORY_KEY):
+        if not platform or platform in _PSEUDO_KEYS:
             return
 
         now_fav = self._favorites.toggle(platform, rom_name)
@@ -981,7 +1026,7 @@ class MainWindow(QMainWindow):
                 row_i = selected_rows[0].row()
                 fav_it = self.tw_romsList.item(row_i, 0)
                 fav_platform = fav_it.data(Qt.ItemDataRole.UserRole) if fav_it else None
-            if fav_platform and fav_platform != _FAVORITES_KEY:
+            if fav_platform and fav_platform not in _PSEUDO_KEYS:
                 is_fav = self._favorites.is_favorite(fav_platform, rom_name)
 
         act_fav = QAction(("★  Desfavoritar" if is_fav else "★  Favoritar"), self)
@@ -1053,7 +1098,7 @@ class MainWindow(QMainWindow):
         if not sel:
             return None
         p = sel[0].data(Qt.ItemDataRole.UserRole)
-        if p in (_FAVORITES_KEY, _HISTORY_KEY):
+        if p in _PSEUDO_KEYS:
             rows = self.tw_romsList.selectionModel().selectedRows()
             if rows:
                 it = self.tw_romsList.item(rows[0].row(), 0)
