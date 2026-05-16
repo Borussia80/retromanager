@@ -1,13 +1,14 @@
 import os
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
+    QApplication, QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
     QMessageBox, QWidget, QFileDialog,
 )
 
 from ui.ui_Options import Ui_Dialog as Ui
 from _settings import SettingsHelper
 from integrations_panel import _StatusRow
+from theme import apply_theme
 
 
 _CACHE_PRESETS = [
@@ -16,6 +17,12 @@ _CACHE_PRESETS = [
     ("A cada 90 dias",               90),
     ("A cada inicialização",          1),
     ("Nunca (modo offline)",         -1),
+]
+
+_THEME_PRESETS = [
+    ("Escuro (padrão)", "dark"),
+    ("Claro",           "light"),
+    ("Sistema",         "system"),
 ]
 
 
@@ -33,6 +40,9 @@ class Options(QDialog, Ui):
 
         for label, days in _CACHE_PRESETS:
             self.cb_cache_expiration.addItem(label, days)
+
+        for label, value in _THEME_PRESETS:
+            self.cb_theme.addItem(label, value)
 
         self.le_DownloadPath.setAcceptDrops(True)
 
@@ -124,6 +134,11 @@ class Options(QDialog, Ui):
         self.le_DownloadPath.setText(self._settings.get('download_path'))
         self.cb_unzip.setChecked(self._settings.get('unzip'))
         self.cb_checkupdates.setChecked(self._settings.get('check_updates'))
+
+        theme = self._settings.get('theme')
+        t_idx = self.cb_theme.findData(theme)
+        self.cb_theme.setCurrentIndex(t_idx if t_idx >= 0 else 0)
+
         return super().show()
 
     def _onBrowsePathClicked(self):
@@ -141,4 +156,10 @@ class Options(QDialog, Ui):
 
         self._settings.update(['unzip', self.cb_unzip.isChecked()])
         self._settings.update(['check_updates', self.cb_checkupdates.isChecked()])
+
+        new_theme = self.cb_theme.currentData()
+        if new_theme:
+            self._settings.update(['theme', new_theme])
+            apply_theme(QApplication.instance(), new_theme)
+
         self._settings.write()

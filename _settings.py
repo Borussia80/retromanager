@@ -16,6 +16,7 @@ class SettingsHelper():
       "download_path": DEFAULT_DOWNLOAD_DIR,
       "import_paths": [],
       "organize_by_platform": True,
+      "theme": "dark",
       "unzip": True,
     }
     os.makedirs(CONFIG_DIR, exist_ok=True)

@@ -14,7 +14,7 @@ class Ui_Dialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName("Dialog")
         Dialog.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
-        Dialog.resize(560, 300)
+        Dialog.resize(560, 340)
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap(":/app.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
         Dialog.setWindowIcon(icon)
@@ -105,6 +105,21 @@ class Ui_Dialog(object):
         misc_lay.addWidget(self.cb_checkupdates)
         geral_lay.addWidget(self.groupBox_2)
 
+        # Aparência
+        self.groupBox_appearance = QtWidgets.QGroupBox(parent=self.tab_geral)
+        self.groupBox_appearance.setObjectName("groupBox_appearance")
+        appearance_lay = QtWidgets.QHBoxLayout(self.groupBox_appearance)
+        appearance_lay.setObjectName("horizontalLayout_4")
+
+        self.lbl_theme = QtWidgets.QLabel(parent=self.groupBox_appearance)
+        self.lbl_theme.setObjectName("lbl_theme")
+        appearance_lay.addWidget(self.lbl_theme)
+
+        self.cb_theme = QtWidgets.QComboBox(parent=self.groupBox_appearance)
+        self.cb_theme.setObjectName("cb_theme")
+        appearance_lay.addWidget(self.cb_theme, 1)
+        geral_lay.addWidget(self.groupBox_appearance)
+
         geral_lay.addStretch()
         self.tab_widget.addTab(self.tab_geral, "Geral")
 
@@ -148,3 +163,5 @@ class Ui_Dialog(object):
         self.groupBox_2.setTitle(_translate("Dialog", "Comportamento"))
         self.cb_unzip.setText(_translate("Dialog", "Descompactar após baixar"))
         self.cb_checkupdates.setText(_translate("Dialog", "Buscar atualizações ao iniciar"))
+        self.groupBox_appearance.setTitle(_translate("Dialog", "Aparência"))
+        self.lbl_theme.setText(_translate("Dialog", "Tema"))

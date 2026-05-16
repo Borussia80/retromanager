@@ -25,6 +25,16 @@ CREATE TABLE IF NOT EXISTS roms (
 CREATE INDEX IF NOT EXISTS idx_roms_platform ON roms (platform);
 """
 
+_FTS_SCHEMA = """
+CREATE VIRTUAL TABLE IF NOT EXISTS roms_fts USING fts5(
+    name, platform,
+    content='roms', content_rowid='rowid'
+);
+CREATE TRIGGER IF NOT EXISTS roms_ai AFTER INSERT ON roms BEGIN
+    INSERT INTO roms_fts(rowid, name, platform) VALUES (new.rowid, new.name, new.platform);
+END;
+"""
+
 
 class PlatformsHelper:
     def __init__(self):
@@ -33,8 +43,23 @@ class PlatformsHelper:
         is_new_db = not os.path.exists(PLATFORMS_CACHE_DB)
         self._db = sqlite3.connect(PLATFORMS_CACHE_DB, check_same_thread=False)
         self._db.executescript(_SCHEMA)
+        self._fts_available = self._setup_fts()
         if is_new_db:
             self._migrate_from_json()
+
+    def _setup_fts(self) -> bool:
+        """Create FTS5 virtual table and populate it if empty. Returns True if FTS5 is available."""
+        try:
+            self._db.executescript(_FTS_SCHEMA)
+            count = self._db.execute("SELECT COUNT(*) FROM roms_fts").fetchone()[0]
+            if count == 0:
+                self._db.execute(
+                    "INSERT INTO roms_fts(rowid, name, platform) SELECT rowid, name, platform FROM roms"
+                )
+                self._db.commit()
+            return True
+        except sqlite3.OperationalError:
+            return False
 
     def _migrate_from_json(self):
         if not os.path.exists(PLATFORMS_CACHE_FILENAME):
@@ -121,6 +146,43 @@ class PlatformsHelper:
             return None
         return RomEntry(source_id=row[0], file_path=row[1], size=row[2],
                         md5=row[3], crc32=row[4], sha1=row[5], format=row[6])
+
+    def search_roms(self, platform_name: str, query: str, limit: int = 500) -> list[str]:
+        """Return ROM names matching query. Uses FTS5 when available, Python fallback otherwise."""
+        query = query.strip()
+        if not query:
+            with self._lock:
+                rows = self._db.execute(
+                    "SELECT name FROM roms WHERE platform=? ORDER BY name LIMIT ?",
+                    (platform_name, limit)
+                ).fetchall()
+            return [r[0] for r in rows]
+
+        if self._fts_available:
+            tokens = query.lower().split()
+            fts_query = " OR ".join(f'"{t}"*' for t in tokens)
+            with self._lock:
+                try:
+                    rows = self._db.execute(
+                        "SELECT roms.name FROM roms_fts "
+                        "JOIN roms ON roms.rowid = roms_fts.rowid "
+                        "WHERE roms_fts MATCH ? AND roms.platform=? "
+                        "ORDER BY rank LIMIT ?",
+                        (fts_query, platform_name, limit)
+                    ).fetchall()
+                    return [r[0] for r in rows]
+                except sqlite3.OperationalError:
+                    pass
+
+        # Python-side fallback
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT name FROM roms WHERE platform=? ORDER BY name",
+                (platform_name,)
+            ).fetchall()
+        import library_service
+        keywords = query.lower().split()
+        return [r[0] for r in rows if library_service.rom_matches_filters(r[0], keywords, None)]
 
     def getRoms(self, platform_name: str):
         with self._lock:

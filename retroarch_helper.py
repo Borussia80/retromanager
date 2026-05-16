@@ -4,6 +4,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from core.plugins.base import EmulatorPlugin
+
 
 CORE_MAP: dict[str, tuple[str, str]] = {
     "Nintendo - NES":                   ("fceumm_libretro.so",           "FCEUmm"),
@@ -52,7 +54,7 @@ _CONFIG_CANDIDATES = [
 ]
 
 
-class RetroArchHelper:
+class RetroArchHelper(EmulatorPlugin):
     """Detect RetroArch and manage playlists / launch."""
 
     def __init__(self):
@@ -82,6 +84,10 @@ class RetroArchHelper:
                 if candidate.exists():
                     self._exe = str(candidate)
                     break
+
+    @property
+    def name(self) -> str:
+        return "RetroArch"
 
     @property
     def detected(self) -> bool:
@@ -175,6 +181,12 @@ class RetroArchHelper:
             return True
         except OSError:
             return False
+
+    def add_to_library(self, platform: str, rom_name: str, rom_path: str) -> bool:
+        return self.add_to_playlist(platform, rom_name, rom_path)
+
+    def library_count(self) -> int:
+        return self.total_playlist_items()
 
     @staticmethod
     def _empty_playlist() -> dict:

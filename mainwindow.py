@@ -16,6 +16,8 @@ from _settings import SettingsHelper
 from _updater import UpdaterHelper
 from _platforms import PlatformsHelper
 from _tools import Tools, DownloadWorker, HashCheckWorker
+from download_engine import DownloadEngine
+from notifications import Notifier
 from _debug import DebugHelper, DebugType
 
 _FAVORITES_KEY = "_FAVORITES_"
@@ -53,6 +55,7 @@ class MainWindow(QMainWindow):
         self._favorites = FavoritesManager()
         self._history = HistoryManager()
 
+        self._notifier = Notifier(self)
         self.optionsDialog = Options(self, settings, self._retroarch, self._lutris)
         self.aboutDialog = About(self)
         self.download_queue = DownloadQueue(self)
@@ -783,8 +786,15 @@ class MainWindow(QMainWindow):
     def _applyTableFilter(self):
         if self.table_placeholder_active:
             return
-        keywords = self.le_filter.text().strip().lower().split()
+        raw_text = self.le_filter.text().strip()
+        keywords = raw_text.lower().split()
         region = self._selectedRegion()
+
+        # FTS5 pre-filter: get matching names from SQLite when text is present
+        fts_names: set[str] | None = None
+        if raw_text and (platform := self._current_platform()):
+            fts_names = set(self.platforms.search_roms(platform, raw_text))
+
         visible = 0
         self.tw_romsList.setUpdatesEnabled(False)
         try:
@@ -792,7 +802,13 @@ class MainWindow(QMainWindow):
                 it = self.tw_romsList.item(i, 0)
                 name = it.text()
                 shortname = it.data(Qt.ItemDataRole.UserRole + 3) or ""
-                show = library_service.rom_matches_filters(name, keywords, region, shortname)
+                if fts_names is not None:
+                    # FTS5 already filtered by text; still apply region filter Python-side
+                    show = (name in fts_names or shortname in fts_names) and (
+                        not region or f"({region})".lower() in name.lower()
+                    )
+                else:
+                    show = library_service.rom_matches_filters(name, keywords, region, shortname)
                 self.tw_romsList.setRowHidden(i, not show)
                 if show:
                     visible += 1
@@ -1289,7 +1305,7 @@ class MainWindow(QMainWindow):
         self.download_panel._btn_start.setEnabled(False)
 
         self.download_thread = QThread(self)
-        self.download_worker = DownloadWorker(self.settings, self.platforms, items)
+        self.download_worker = DownloadEngine(self.settings, self.platforms, items)
         self.download_worker.moveToThread(self.download_thread)
         self.download_thread.started.connect(self.download_worker.run)
         self.download_worker.startedItem.connect(self._onDownloadStartedItem)
@@ -1320,6 +1336,7 @@ class MainWindow(QMainWindow):
         self.download_queue.remove(platform, rom_name)
         self.download_panel.complete_item(rom_name)
         self._updateStatusbarQueueText()
+        self._notifier.send("Download concluído", f"{rom_name} está pronto para jogar.")
         # Update ✓ badge in the table immediately without re-selecting the platform
         for i in range(self.tw_romsList.rowCount()):
             it = self.tw_romsList.item(i, 0)

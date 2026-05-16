@@ -7,6 +7,8 @@ from pathlib import Path
 
 import yaml
 
+from core.plugins.base import EmulatorPlugin
+
 
 _DB_CANDIDATES = [
     Path.home() / ".local" / "share" / "lutris" / "pga.db",
@@ -14,7 +16,7 @@ _DB_CANDIDATES = [
 ]
 
 
-class LutrisHelper:
+class LutrisHelper(EmulatorPlugin):
     """Detect Lutris and add games via installer YAML."""
 
     def __init__(self):
@@ -34,6 +36,10 @@ class LutrisHelper:
             if loc.exists():
                 self._db = loc
                 break
+
+    @property
+    def name(self) -> str:
+        return "Lutris"
 
     @property
     def detected(self) -> bool:
@@ -64,6 +70,16 @@ class LutrisHelper:
     @staticmethod
     def _clean_name(name: str) -> str:
         return re.sub(r'\s*\([^)]+\)', '', name).strip()
+
+    def launch(self, platform: str, rom_path: str) -> bool:
+        """Launch via Lutris requires a registered game entry; not supported directly."""
+        return False
+
+    def add_to_library(self, platform: str, rom_name: str, rom_path: str) -> bool:
+        return self.add_game(platform, rom_name, rom_path)
+
+    def library_count(self) -> int:
+        return self.game_count()
 
     def add_game(self, platform: str, rom_name: str, rom_path: str,
                  retroarch_exe: str | None = None,

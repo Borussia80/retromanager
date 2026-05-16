@@ -19,7 +19,7 @@ from _updater import UpdaterHelper
 from _platforms import PlatformsHelper
 from _tools import Tools, CacheGenerator
 from mainwindow import MainWindow
-from theme import DARK_THEME
+from theme import apply_theme
 
 StartupTimer.mark("imports_done")
 
@@ -33,7 +33,6 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     StartupTimer.mark("qapp_created")
 
-    app.setStyleSheet(DARK_THEME)
     _icon = QIcon()
     for _size in (16, 32, 48, 64, 128, 256, 512):
         _icon.addPixmap(QPixmap(f"{ICONS_DIR}/icon_{_size}.png"))
@@ -43,6 +42,8 @@ if __name__ == "__main__":
     settings = SettingsHelper()
     updater = UpdaterHelper()
     StartupTimer.mark("settings_loaded")
+
+    apply_theme(app, settings.get("theme"))
 
     if not os.path.exists(PLATFORMS_CACHE_DB) or not Tools.isCacheValid(settings.get("cache_expiration")):
         cache = CacheGenerator(app)
