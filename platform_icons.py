@@ -1,4 +1,8 @@
+import logging
+import os
 import re
+import time
+
 from PyQt6.QtCore import Qt, QSize, QRect
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QBrush, QPainter
 from PyQt6.QtWidgets import (
@@ -40,6 +44,10 @@ BADGE_TAGS: dict[str, tuple[str, str]] = {
     "Aftermarket":  ("#2a1f3d", "#9b6ef3"),
     "Demo":         ("#1a1a2e", "#4f8ef7"),
 }
+
+
+_log = logging.getLogger("retromanager.delegate")
+_PERF_PROFILE = os.environ.get("DEBUG", "0") == "4"
 
 
 def _default_style(name: str) -> dict:
@@ -165,6 +173,9 @@ class GameTitleDelegate(QStyledItemDelegate):
     _ROW_H = 28
 
     def paint(self, painter, option, index):
+        if _PERF_PROFILE:
+            _t0 = time.perf_counter()
+
         painter.save()
 
         # Background
@@ -253,6 +264,12 @@ class GameTitleDelegate(QStyledItemDelegate):
             painter.drawText(r, Qt.AlignmentFlag.AlignCenter, tag)
 
         painter.restore()
+
+        if _PERF_PROFILE:
+            elapsed_us = (time.perf_counter() - _t0) * 1_000_000
+            if elapsed_us > 500:
+                _log.debug("GameTitleDelegate.paint slow: row=%d  %.0f µs",
+                           index.row(), elapsed_us)
 
     def sizeHint(self, option, index):
         return QSize(option.rect.width(), self._ROW_H)

@@ -1,60 +1,59 @@
-import sys, os
-from PyQt6.QtCore import *
-from PyQt6.QtGui import *
-from PyQt6.QtWidgets import *
+import sys
+import os
 
-# Logging must be configured before any other local import
+# Startup timing — must be the very first local import
+from _bootstrap import StartupTimer, start_memory_profiling
+StartupTimer.mark("_start")
+
+from PyQt6.QtCore import QResource
+from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtWidgets import QApplication
+
+# Logging before any other local import so every module gets handlers
 from _logging import setup_logging
 setup_logging()
 
-# Helpers
-from _constants import *
+from _constants import PLATFORMS_CACHE_DB, RESOURCES_FILE, ICONS_DIR
 from _settings import SettingsHelper
 from _updater import UpdaterHelper
 from _platforms import PlatformsHelper
 from _tools import Tools, CacheGenerator
-
-# Main class
 from mainwindow import MainWindow
-
 from theme import DARK_THEME
 
+StartupTimer.mark("imports_done")
+
+os.environ.setdefault("DEBUG", "0")  # 0=off  1=ERROR  2=WARNING  3=INFO  4=DEBUG
 
 
-os.environ.setdefault('DEBUG', "0") # 0 = DISABLE
-                                   # 1 = ERROR
-                                   # 2 = WARNING
-                                   # 3 = INFO
-                                   # 4 = DEBUG
+if __name__ == "__main__":
+    if os.environ.get("DEBUG", "0") == "4":
+        start_memory_profiling()
 
+    app = QApplication(sys.argv)
+    StartupTimer.mark("qapp_created")
 
+    app.setStyleSheet(DARK_THEME)
+    _icon = QIcon()
+    for _size in (16, 32, 48, 64, 128, 256, 512):
+        _icon.addPixmap(QPixmap(f"{ICONS_DIR}/icon_{_size}.png"))
+    app.setWindowIcon(_icon)
+    QResource.registerResource(RESOURCES_FILE)
 
-if __name__ == '__main__':
-  # Initialize PyQt
-  app = QApplication(sys.argv)
+    settings = SettingsHelper()
+    updater = UpdaterHelper()
+    StartupTimer.mark("settings_loaded")
 
-  # Load theme, icon (multi-resolution) and resources
-  app.setStyleSheet(DARK_THEME)
-  _icon = QIcon()
-  for _size in (16, 32, 48, 64, 128, 256, 512):
-      _icon.addPixmap(QPixmap(f"{ICONS_DIR}/icon_{_size}.png"))
-  app.setWindowIcon(_icon)
-  QResource.registerResource(RESOURCES_FILE)
+    if not os.path.exists(PLATFORMS_CACHE_DB) or not Tools.isCacheValid(settings.get("cache_expiration")):
+        cache = CacheGenerator(app)
+        cache.run()
 
-  # Boot helpers
-  settings = SettingsHelper()
-  updater = UpdaterHelper()
+    platforms = PlatformsHelper()
+    StartupTimer.mark("platforms_loaded")
 
-  # Build catalogue cache if missing or expired
-  if not os.path.exists(PLATFORMS_CACHE_DB) or not Tools.isCacheValid(settings.get('cache_expiration')):
-      cache = CacheGenerator(app)
-      cache.run()
+    mainWindow = MainWindow(settings, updater, platforms)
+    StartupTimer.mark("mainwindow_created")
+    StartupTimer.report()
 
-  platforms = PlatformsHelper()
-
-  # Initialize and show main window
-  mainWindow = MainWindow(settings, updater, platforms)
-  mainWindow.show()
-
-  # Execute then shutdown
-  sys.exit(app.exec())
+    mainWindow.show()
+    sys.exit(app.exec())

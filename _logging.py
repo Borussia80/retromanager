@@ -54,4 +54,11 @@ def setup_logging() -> logging.Logger:
 
     root.addHandler(app_h)
     root.addHandler(err_h)
+
+    if os.environ.get("DEBUG", "0") != "0":
+        stream_h = logging.StreamHandler()
+        stream_h.setLevel(logging.DEBUG)
+        stream_h.setFormatter(formatter)
+        root.addHandler(stream_h)
+
     return root
