@@ -34,9 +34,7 @@ class DownloadQueue(QDialog, Ui_DownloadQueue):
     self.pbDeleteAll.setEnabled(False)
 
     # Setup events
-    self.lwToDownload.selectionModel().selectionChanged.connect(
-            self._onSelectionChanged
-        )
+    self.lwToDownload.selectionModel().selectionChanged.connect(self._onSelectionChanged)
     self.pbDownload.clicked.connect(lambda: self.downloadClickedEvent())
     self.pbDelete.clicked.connect(self._onpbDeleteClicked)
     self.pbDeleteAll.clicked.connect(self._onpbDeleteAllClicked)
