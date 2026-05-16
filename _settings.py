@@ -29,20 +29,18 @@ class SettingsHelper():
 
 
   def get(self, option: str):
-    for op in self._settings:
-      if option == op: return self._settings[option]
-    raise ValueError(f"Setting <{option}> not found.")
+    try:
+      return self._settings[option]
+    except KeyError:
+      raise ValueError(f"Setting <{option}> not found.")
 
 
   def update(self, option: Tuple[str, Any]):
     key, value = option
-
-    for op in self._settings:
-      if op == key:
-        self._settings[key] = value
-        DebugHelper.print(DebugType.TYPE_DEBUG, f"'{key}' updated to {value}.", "SETTINGS")
-        return
-    raise ValueError(f"Setting <{key}> not found.")
+    if key not in self._settings:
+      raise ValueError(f"Setting <{key}> not found.")
+    self._settings[key] = value
+    DebugHelper.print(DebugType.TYPE_DEBUG, f"'{key}' updated to {value!r}.", "SETTINGS")
 
 
   def write(self):
@@ -57,12 +55,17 @@ class SettingsHelper():
     try:
       with open(self.full_path, 'r', encoding='utf-8') as fp:
         temp_settings: dict = json.load(fp)
-        if len(temp_settings.keys()) != len(self._settings.keys()): self._fix(temp_settings)
-        else: self._settings = temp_settings
+        if set(temp_settings.keys()) != set(self._settings.keys()):
+          self._fix(temp_settings)
+        else:
+          self._settings = temp_settings
         os.makedirs(self._settings["download_path"], exist_ok=True)
         DebugHelper.print(DebugType.TYPE_INFO, f"<{self.full_path}> loaded.", "SETTINGS")
         for option in self._settings: DebugHelper.print(DebugType.TYPE_DEBUG, f"'{option}': {str(self._settings[option])}")
-    except EOFError: pass
+    except EOFError:
+      DebugHelper.print(DebugType.TYPE_ERROR,
+                        "settings.json vazio ou corrompido — usando padrões.", "SETTINGS")
+      self._fix({})
     except json.JSONDecodeError:
       self._read_legacy_pickle()
 

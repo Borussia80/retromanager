@@ -23,6 +23,7 @@ class DebugType(Enum):
 
 
 class DebugHelper:
+    @staticmethod
     def print(
         debug_type: Literal[
             DebugType.TYPE_INFO, DebugType.TYPE_WARNING,

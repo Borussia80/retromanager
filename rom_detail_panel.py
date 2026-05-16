@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QCursor, QDesktopServices
 
 from models import RomEntry
+from _tools import Tools
 
 
 class RomDetailPanel(QWidget):
@@ -164,7 +165,6 @@ class RomDetailPanel(QWidget):
 
     def show_rom(self, platform: str, rom_name: str, display_name: str,
                  rom_data: RomEntry, is_fav: bool):
-        from _tools import Tools
         self._platform = platform
         self._rom_name = rom_name
 

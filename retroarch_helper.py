@@ -151,9 +151,9 @@ class RetroArchHelper:
                 with open(ppath) as f:
                     data = json.load(f)
             except Exception:
-                data = self._empty_playlist(sys_name)
+                data = self._empty_playlist()
         else:
-            data = self._empty_playlist(sys_name)
+            data = self._empty_playlist()
 
         for item in data["items"]:
             if item.get("path") == rom_path:
@@ -177,7 +177,7 @@ class RetroArchHelper:
             return False
 
     @staticmethod
-    def _empty_playlist(db_name: str = "") -> dict:
+    def _empty_playlist() -> dict:
         return {
             "version": "1.4",
             "default_core_path": "",

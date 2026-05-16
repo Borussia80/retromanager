@@ -71,10 +71,9 @@ class UpdaterHelper:
 
     def updateAvailable(self) -> bool:
         self._fetchLatestRelease()
-        if VERSION_MAJOR < self.LASTEST_MAJOR:
-            DebugHelper.print(DebugType.TYPE_INFO, "Update available!", "UPDATER")
-            return True
-        if VERSION_MAJOR == self.LASTEST_MAJOR and VERSION_MINOR < self.LASTEST_MINOR:
+        cur = (VERSION_MAJOR, VERSION_MINOR, VERSION_REVISION)
+        lat = (self.LASTEST_MAJOR, self.LASTEST_MINOR, self.LASTEST_REVISION)
+        if lat > cur:
             DebugHelper.print(DebugType.TYPE_INFO, "Update available!", "UPDATER")
             return True
         DebugHelper.print(DebugType.TYPE_INFO, "You have the latest version.", "UPDATER")

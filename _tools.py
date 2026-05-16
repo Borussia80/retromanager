@@ -1,3 +1,4 @@
+import requests
 import threading
 import zipfile
 
@@ -342,6 +343,7 @@ class HashCheckWorker(QRunnable):
 
 
 class Tools():
+  @staticmethod
   def convertSizeToReadable(size: int) -> str:
     if size < 1000:
       return '%i' % size + 'B'
@@ -355,6 +357,7 @@ class Tools():
       return '%.1f' % float(size/1000000000000) + ' TB'
 
 
+  @staticmethod
   def isCacheValid(validity_days: int) -> bool:
     import os
     from datetime import datetime, timedelta

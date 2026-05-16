@@ -5,6 +5,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import yaml
+
 
 _DB_CANDIDATES = [
     Path.home() / ".local" / "share" / "lutris" / "pga.db",
@@ -86,18 +88,19 @@ class LutrisHelper:
             f'"{a}"' if " " in str(a) else str(a) for a in args_parts
         )
 
-        yaml_text = (
-            f"name: {clean}\n"
-            f"game_slug: {slug}\n"
-            f"version: RetroArch\n"
-            f"runner: linux\n"
-            f"\n"
-            f"script:\n"
-            f"  game:\n"
-            f"    exe: {exe}\n"
-            f"    args: {args_str}\n"
-            f"    working_dir: {work_dir}\n"
-        )
+        yaml_text = yaml.dump({
+            "name": clean,
+            "game_slug": slug,
+            "version": "RetroArch",
+            "runner": "linux",
+            "script": {
+                "game": {
+                    "exe": exe,
+                    "args": args_str,
+                    "working_dir": work_dir,
+                }
+            },
+        }, allow_unicode=True)
 
         try:
             with tempfile.NamedTemporaryFile(

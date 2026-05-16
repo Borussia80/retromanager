@@ -186,8 +186,19 @@ class GameTitleDelegate(QStyledItemDelegate):
         bf.setBold(True)
         bfm = QFontMetrics(bf)
 
-        badge_rects: list[tuple[str, QRect]] = []
         x_right = rect.right()
+
+        # Checkmark measured first — occupies the rightmost slot
+        chk_text = "✓"
+        chk_r: QRect | None = None
+        if downloaded:
+            chk_w = bfm.horizontalAdvance(chk_text) + self._BADGE_PAD_H * 2
+            chk_h = bfm.height() + self._BADGE_PAD_V * 2
+            chk_y = rect.top() + (rect.height() - chk_h) // 2
+            chk_r = QRect(x_right - chk_w, chk_y, chk_w, chk_h)
+            x_right -= chk_w + 4
+
+        badge_rects: list[tuple[str, QRect]] = []
         for tag in reversed(tags):
             if tag not in BADGE_TAGS:
                 continue
@@ -197,21 +208,6 @@ class GameTitleDelegate(QStyledItemDelegate):
             r = QRect(x_right - bw, by, bw, bh)
             badge_rects.append((tag, r))
             x_right -= bw + 4
-
-        # Downloaded checkmark badge (rightmost)
-        if downloaded:
-            chk_text = "✓"
-            chk_w = bfm.horizontalAdvance(chk_text) + self._BADGE_PAD_H * 2
-            chk_h = bfm.height() + self._BADGE_PAD_V * 2
-            chk_y = rect.top() + (rect.height() - chk_h) // 2
-            chk_r = QRect(x_right - chk_w, chk_y, chk_w, chk_h)
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor("#1a3a26"))
-            painter.drawRoundedRect(chk_r, self._BADGE_RADIUS, self._BADGE_RADIUS)
-            painter.setFont(bf)
-            painter.setPen(QColor("#34c97e"))
-            painter.drawText(chk_r, Qt.AlignmentFlag.AlignCenter, chk_text)
-            x_right -= chk_w + 4
 
         # Star indicator on the left edge
         x_left = rect.left()
@@ -237,7 +233,16 @@ class GameTitleDelegate(QStyledItemDelegate):
             clean,
         )
 
-        # Badges
+        # Checkmark badge
+        if chk_r is not None:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("#1a3a26"))
+            painter.drawRoundedRect(chk_r, self._BADGE_RADIUS, self._BADGE_RADIUS)
+            painter.setFont(bf)
+            painter.setPen(QColor("#34c97e"))
+            painter.drawText(chk_r, Qt.AlignmentFlag.AlignCenter, chk_text)
+
+        # Region tag badges
         painter.setFont(bf)
         for tag, r in badge_rects:
             bg, fg = BADGE_TAGS[tag]

@@ -1,17 +1,25 @@
 import os
 
-from PyQt6.QtCore import *
-
-_FAVORITES_KEY = "_FAVORITES_"
-_HISTORY_KEY   = "_HISTORY_"
-from PyQt6.QtGui import *
-from PyQt6.QtWidgets import *
+from PyQt6.QtCore import (
+    Qt, QObject, QPoint, QSize, QShortcut, QKeySequence,
+    QStringListModel, QThread, QThreadPool, QTimer, pyqtSignal,
+)
+from PyQt6.QtGui import QAction, QColor, QCursor, QIcon
+from PyQt6.QtWidgets import (
+    QAbstractItemView, QCompleter, QDialog, QFileDialog, QHeaderView,
+    QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+    QMainWindow, QMenu, QMessageBox, QPushButton, QSplitter,
+    QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+)
 
 from _settings import SettingsHelper
 from _updater import UpdaterHelper
 from _platforms import PlatformsHelper
 from _tools import Tools, DownloadWorker, HashCheckWorker
-from _debug import *
+from _debug import DebugHelper, DebugType
+
+_FAVORITES_KEY = "_FAVORITES_"
+_HISTORY_KEY   = "_HISTORY_"
 from download_queue import DownloadQueue
 from download_panel import DownloadQueuePanel
 from platform_icons import (
@@ -488,21 +496,6 @@ class MainWindow(QMainWindow):
         """Load MAME name cache in a background thread; harmless if XML not present."""
         self._mame_names_loading = True
 
-        class _Worker(QRunnable):
-            def __init__(self, callback):
-                super().__init__()
-                self._cb = callback
-
-            def run(self):
-                names = _mame_names.load()
-                QMetaObject.invokeMethod(
-                    self._cb, "_onMameNamesLoaded",
-                    Qt.ConnectionType.QueuedConnection,
-                    Q_ARG(object, names),
-                )
-
-        # QRunnable with invokeMethod on a plain QObject doesn't work cleanly in PyQt6;
-        # use a simple QThread instead.
         self._mame_thread = QThread(self)
 
         class _Loader(QObject):
@@ -730,7 +723,8 @@ class MainWindow(QMainWindow):
         # Update all matching rows in the current table view
         for i in range(self.tw_romsList.rowCount()):
             row_item = self.tw_romsList.item(i, 0)
-            if row_item and row_item.text() == rom_name:
+            shortname = (row_item.data(Qt.ItemDataRole.UserRole + 3) or row_item.text()) if row_item else None
+            if row_item and shortname == rom_name:
                 row_item.setData(Qt.ItemDataRole.UserRole + 2, now_fav)
         self.tw_romsList.viewport().update()
 
@@ -1057,7 +1051,7 @@ class MainWindow(QMainWindow):
         platform = self._current_platform()
         if not platform:
             return
-        rom_path = library_service.find_rom_file(self.settings, rom_name, self._current_platform())
+        rom_path = library_service.find_rom_file(self.settings, rom_name, platform)
         if not rom_path:
             QMessageBox.warning(
                 self, "Arquivo não encontrado",
@@ -1077,7 +1071,7 @@ class MainWindow(QMainWindow):
         platform = self._current_platform()
         if not platform:
             return
-        rom_path = library_service.find_rom_file(self.settings, rom_name, self._current_platform())
+        rom_path = library_service.find_rom_file(self.settings, rom_name, platform)
         if not rom_path:
             QMessageBox.warning(
                 self, "Arquivo não encontrado",
@@ -1103,7 +1097,7 @@ class MainWindow(QMainWindow):
         platform = self._current_platform()
         if not platform:
             return
-        rom_path = library_service.find_rom_file(self.settings, rom_name, self._current_platform())
+        rom_path = library_service.find_rom_file(self.settings, rom_name, platform)
         if not rom_path:
             QMessageBox.warning(
                 self, "Arquivo não encontrado",
@@ -1137,7 +1131,7 @@ class MainWindow(QMainWindow):
         platform = self._current_platform()
         if not platform:
             return
-        rom_path = library_service.find_rom_file(self.settings, rom_name, self._current_platform())
+        rom_path = library_service.find_rom_file(self.settings, rom_name, platform)
         if not rom_path:
             QMessageBox.warning(
                 self, "Arquivo não encontrado",
@@ -1329,7 +1323,8 @@ class MainWindow(QMainWindow):
         # Update ✓ badge in the table immediately without re-selecting the platform
         for i in range(self.tw_romsList.rowCount()):
             it = self.tw_romsList.item(i, 0)
-            if it and it.text() == rom_name:
+            shortname = (it.data(Qt.ItemDataRole.UserRole + 3) or it.text()) if it else None
+            if it and shortname == rom_name:
                 it.setData(Qt.ItemDataRole.UserRole + 1, True)
                 self.tw_romsList.viewport().update()
                 break

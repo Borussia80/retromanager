@@ -1,9 +1,8 @@
 import json
 import os
 
-from PyQt6.QtCore import *
-from PyQt6.QtGui import *
-from PyQt6.QtWidgets import *
+from PyQt6.QtCore import Qt, QItemSelection
+from PyQt6.QtWidgets import QDialog, QListWidgetItem, QMainWindow, QMessageBox
 
 # Ui
 from ui.ui_DownloadQueue import Ui_DownloadQueue
@@ -35,7 +34,9 @@ class DownloadQueue(QDialog, Ui_DownloadQueue):
     self.pbDeleteAll.setEnabled(False)
 
     # Setup events
-    self.lwToDownload.selectionChanged = self._onSelectionChanged
+    self.lwToDownload.selectionModel().selectionChanged.connect(
+            self._onSelectionChanged
+        )
     self.pbDownload.clicked.connect(lambda: self.downloadClickedEvent())
     self.pbDelete.clicked.connect(self._onpbDeleteClicked)
     self.pbDeleteAll.clicked.connect(self._onpbDeleteAllClicked)

@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 
 from platform_icons import PLATFORM_STYLE, parse_title_tags
 from thumbnail_cache import ThumbnailFetcher, load_cached_path
+from library_service import rom_matches_filters
 
 CARD_W   = 150
 CARD_H   = 220
@@ -85,12 +86,8 @@ class _RomFilterProxy(QSortFilterProxyModel):
 
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
         idx = self.sourceModel().index(source_row, 0, source_parent)
-        name = (idx.data(Qt.ItemDataRole.DisplayRole) or "").lower()
-        if self._region and f"({self._region.lower()})" not in name:
-            return False
-        if self._keywords and not all(kw in name for kw in self._keywords):
-            return False
-        return True
+        name = idx.data(Qt.ItemDataRole.DisplayRole) or ""
+        return rom_matches_filters(name, self._keywords, self._region)
 
 
 # ── Delegate ───────────────────────────────────────────────────────────────────
