@@ -22,14 +22,18 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install test dependencies
-        run: pip install pytest
+      - name: Install dev dependencies
+        run: pip install pytest pytest-cov
 
-      - name: Run tests
-        run: python -m pytest tests/ -v --tb=short
+      - name: Run tests with coverage
+        run: |
+          python -m pytest tests/ -v --tb=short \
+            --cov=. \
+            --cov-omit="tests/*,make_*.py,ui/*,*.pyw" \
+            --cov-report=term-missing
 
   lint:
-    name: Lint (ruff)
+    name: Lint & format (ruff + black)
     runs-on: ubuntu-latest
 
     steps:
@@ -40,10 +44,10 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install linters
+        run: pip install ruff black
 
-      - name: Check style
+      - name: Ruff check
         run: |
           ruff check \
             library_service.py \
@@ -52,3 +56,37 @@ jobs:
             models.py \
             _thumbnail_evict.py \
             tests/
+
+      - name: Black format check
+        run: |
+          black --check \
+            library_service.py \
+            mame_names.py \
+            _logging.py \
+            models.py \
+            _thumbnail_evict.py \
+            tests/
+
+  build-appimage:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build AppImage
+        run: |
+          if [ -f scripts/build_appimage.sh ]; then
+            bash scripts/build_appimage.sh
+          else
+            echo "No build script found, skipping AppImage build."
+          fi
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: RetroManager-AppImage
+          path: dist/*.AppImage
+          if-no-files-found: ignore

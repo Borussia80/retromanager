@@ -7,7 +7,7 @@ install_crash_hook()
 StartupTimer.mark("_start")
 
 from PyQt6.QtCore import QResource
-from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtGui import QIcon, QPixmap, QPixmapCache
 from PyQt6.QtWidgets import QApplication
 
 # Logging before any other local import so every module gets handlers
@@ -32,6 +32,7 @@ if __name__ == "__main__":
         start_memory_profiling()
 
     app = QApplication(sys.argv)
+    QPixmapCache.setCacheLimit(51_200)  # 50 MB thumbnail cache
     StartupTimer.mark("qapp_created")
 
     _icon = QIcon()

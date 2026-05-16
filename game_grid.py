@@ -3,7 +3,7 @@ from PyQt6.QtCore import (
     QRect, QSortFilterProxyModel, QThreadPool, pyqtSignal,
 )
 from PyQt6.QtGui import (
-    QColor, QPainter, QPixmap, QFont, QBrush, QPen, QPainterPath,
+    QColor, QPainter, QPixmap, QPixmapCache, QFont, QBrush, QPen, QPainterPath,
 )
 from PyQt6.QtWidgets import (
     QListView, QStyledItemDelegate, QAbstractItemView, QStyle,
@@ -12,6 +12,17 @@ from PyQt6.QtWidgets import (
 from platform_icons import PLATFORM_STYLE, parse_title_tags
 from thumbnail_cache import ThumbnailFetcher, load_cached_path
 from library_service import rom_matches_filters
+
+
+def _load_pixmap(path: str) -> QPixmap | None:
+    """Load a pixmap via QPixmapCache to avoid redundant disk reads."""
+    px = QPixmap()
+    if QPixmapCache.find(path, px):
+        return px if not px.isNull() else None
+    if px.load(path):
+        QPixmapCache.insert(path, px)
+        return px
+    return None
 
 CARD_W   = 150
 CARD_H   = 220
@@ -223,8 +234,8 @@ class GameGridWidget(QListView):
         # Pre-load cached thumbnails, enqueue fetches for the rest
         for name in rom_names:
             if path := load_cached_path(platform, name):
-                px = QPixmap(path)
-                if not px.isNull():
+                px = _load_pixmap(path)
+                if px:
                     self._source.set_thumbnail(name, px)
             else:
                 fetcher = ThumbnailFetcher(platform, name)
@@ -245,6 +256,6 @@ class GameGridWidget(QListView):
     def _on_thumbnail_done(self, platform: str, rom_name: str, path: str):
         if platform != self._source.platform():
             return
-        px = QPixmap(path)
-        if not px.isNull():
+        px = _load_pixmap(path)
+        if px:
             self._source.set_thumbnail(rom_name, px)

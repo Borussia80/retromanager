@@ -522,6 +522,7 @@ class MainWindow(QMainWindow):
         self._mame_loader.done.connect(self._onMameNamesLoaded)
         self._mame_loader.done.connect(self._mame_thread.quit)
         self._mame_thread.finished.connect(self._mame_thread.deleteLater)
+        self._mame_thread.finished.connect(self._mame_loader.deleteLater)
         self._mame_thread.start()
 
     def _onMameNamesLoaded(self, names: dict):
@@ -1428,6 +1429,11 @@ class MainWindow(QMainWindow):
             self._launchRomsDownload()
 
     def closeEvent(self, event):
+        try:
+            self._detail_panel.downloadRequested.disconnect()
+            self._detail_panel.favoriteToggled.disconnect()
+        except (RuntimeError, TypeError):
+            pass
         if self.download_thread and self.download_thread.isRunning():
             self._cancelDownload()
             self.download_thread.quit()
@@ -1470,6 +1476,7 @@ class MainWindow(QMainWindow):
         )
         self._update_worker.done.connect(self._update_thread.quit)
         self._update_thread.finished.connect(self._update_thread.deleteLater)
+        self._update_thread.finished.connect(self._update_worker.deleteLater)
         self._update_thread.start()
 
     def _onUpdateCheckDone(self, update_available: bool, at_launch: bool):
