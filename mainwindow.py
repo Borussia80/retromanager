@@ -1,10 +1,10 @@
 import os
 
 from PyQt6.QtCore import (
-    Qt, QObject, QPoint, QSize,
+    Qt, QObject, QPoint, QSize, QUrl,
     QStringListModel, QThread, QThreadPool, QTimer, pyqtSignal,
 )
-from PyQt6.QtGui import QAction, QColor, QCursor, QIcon, QKeySequence, QShortcut
+from PyQt6.QtGui import QAction, QColor, QCursor, QDesktopServices, QIcon, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCompleter, QDialog, QFileDialog, QHeaderView,
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
@@ -73,6 +73,7 @@ class MainWindow(QMainWindow):
         self._loaded_count = 0
         self._mame_names: dict[str, str] = {}
         self._mame_names_loading = False
+        self._update_available = False
 
         self.filter_timer = QTimer(self)
         self.filter_timer.setSingleShot(True)
@@ -406,6 +407,8 @@ class MainWindow(QMainWindow):
         self.statusBar().addWidget(self.statusbar_queue)
 
         self.statusbar_update = QLabel()
+        self.statusbar_update.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.statusbar_update.mousePressEvent = lambda _: self._askUpdate() if self._update_available else None
         self.statusBar().addPermanentWidget(self.statusbar_update)
 
         # Integrations indicator — shown only when at least one is detected
@@ -1486,6 +1489,7 @@ class MainWindow(QMainWindow):
         self._update_thread.start()
 
     def _onUpdateCheckDone(self, update_available: bool, at_launch: bool):
+        self._update_available = update_available
         if update_available:
             self._askUpdate()
         elif at_launch:
@@ -1494,15 +1498,19 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Atualização", "Você está atualizado.")
             self.statusbar_update.setText("Atualizado.")
 
+    _RELEASES_URL = "https://github.com/Borussia80/retromanager/releases/latest"
+
     def _askUpdate(self):
         ans = QMessageBox.question(
             self, "Atualização disponível",
             f"Uma atualização está disponível!\n\n"
             f"Atual: {self.updater.currentVersionString()}\n"
             f"Mais recente: {self.updater.lastestVersionString()}\n\n"
-            "Deseja atualizar agora?"
+            "Deseja abrir a página de downloads no navegador?"
         )
         if ans == QMessageBox.StandardButton.Yes:
-            QMessageBox.warning(self, "Atualizando…", "Ainda não implementado.")
+            QDesktopServices.openUrl(QUrl(self._RELEASES_URL))
+            self._update_available = False
+            self.statusbar_update.setText("Abrindo página de downloads…")
         else:
-            self.statusbar_update.setText("Nova versão disponível!")
+            self.statusbar_update.setText("Nova versão disponível! ↗")
