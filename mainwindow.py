@@ -1,10 +1,10 @@
 import os
 
 from PyQt6.QtCore import (
-    Qt, QObject, QPoint, QSize, QShortcut, QKeySequence,
+    Qt, QObject, QPoint, QSize,
     QStringListModel, QThread, QThreadPool, QTimer, pyqtSignal,
 )
-from PyQt6.QtGui import QAction, QColor, QCursor, QIcon
+from PyQt6.QtGui import QAction, QColor, QCursor, QIcon, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCompleter, QDialog, QFileDialog, QHeaderView,
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
@@ -569,11 +569,12 @@ class MainWindow(QMainWindow):
         self._current_platform_roms = all_roms
         self._current_platform_downloaded = downloaded_set
 
+        _COMPLETER_LIMIT = 2_000  # MatchContains scans linearly; cap to keep UI responsive
         is_mame = platform_name == "Arcade - MAME"
         if is_mame and self._mame_names:
-            completer_names = [self._mame_names.get(n, n) for n, _ in all_roms]
+            completer_names = [self._mame_names.get(n, n) for n, _ in all_roms[:_COMPLETER_LIMIT]]
         else:
-            completer_names = [n for n, _ in all_roms]
+            completer_names = [n for n, _ in all_roms[:_COMPLETER_LIMIT]]
         self._completer.setModel(QStringListModel(completer_names, self._completer))
 
         chunk = all_roms[:self._CHUNK_SIZE]
@@ -860,7 +861,9 @@ class MainWindow(QMainWindow):
                     visible += 1
         finally:
             self.tw_romsList.setUpdatesEnabled(True)
-        self.game_grid.apply_filter(keywords, region)
+        # Only filter the grid when it is visible — invalidateFilter() on 40k items is expensive
+        if self._view_stack.currentIndex() == 1:
+            self.game_grid.apply_filter(keywords, region)
 
         if visible == 0 and self.tw_romsList.rowCount() > 0:
             self._showFilterEmptyState(region, keywords)
@@ -1089,6 +1092,9 @@ class MainWindow(QMainWindow):
 
     def _switch_view(self, mode: str):
         self._view_stack.setCurrentIndex(0 if mode == "list" else 1)
+        if mode != "list":
+            raw = self.le_filter.text().strip()
+            self.game_grid.apply_filter(raw.lower().split(), self._selectedRegion())
 
     # ──────────────────────────────────────────────
     # RetroArch / Lutris integration

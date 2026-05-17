@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
 )
 
 from platform_icons import PLATFORM_STYLE, parse_title_tags
-from thumbnail_cache import ThumbnailFetcher, load_cached_path
+from thumbnail_cache import ThumbnailFetcher, load_cached_path, get_thumbnail_url
 from library_service import rom_matches_filters
 
 
@@ -237,7 +237,7 @@ class GameGridWidget(QListView):
                 px = _load_pixmap(path)
                 if px:
                     self._source.set_thumbnail(name, px)
-            else:
+            elif get_thumbnail_url(platform, name) is not None:
                 fetcher = ThumbnailFetcher(platform, name)
                 fetcher.signals.done.connect(self._on_thumbnail_done)
                 self._pool.start(fetcher)

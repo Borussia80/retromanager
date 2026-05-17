@@ -189,10 +189,12 @@ class PlatformsHelper:
             fts_query = " OR ".join(f'"{t}"*' for t in tokens)
             with self._lock:
                 try:
+                    # Query roms_fts directly (no JOIN) — the platform column is in the
+                    # FTS5 index, so SQLite evaluates it after FTS5 matching without a
+                    # full table scan of roms (which caused ~900ms on 40k-row catalogs).
                     rows = self._db.execute(
-                        "SELECT roms.name FROM roms_fts "
-                        "JOIN roms ON roms.rowid = roms_fts.rowid "
-                        "WHERE roms_fts MATCH ? AND roms.platform=? "
+                        "SELECT name FROM roms_fts "
+                        "WHERE roms_fts MATCH ? AND platform=? "
                         "ORDER BY rank LIMIT ?",
                         (fts_query, platform_name, limit)
                     ).fetchall()
