@@ -3,10 +3,10 @@ import os
 import re
 import time
 
-from PyQt6.QtCore import Qt, QSize, QRect
+from PyQt6.QtCore import Qt, QSize, QRect, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QBrush, QPainter
 from PyQt6.QtWidgets import (
-    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QSizePolicy,
+    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QSizePolicy,
     QStyledItemDelegate, QStyle, QApplication,
 )
 
@@ -29,6 +29,9 @@ PLATFORM_STYLE: dict[str, dict] = {
     "NEC - PC Engine / TurboGrafx-16":   {"abbr": "PCE", "color": "#00838f"},
     "SNK - Neo Geo MVS":                 {"abbr": "NEO", "color": "#c62828"},
     "Arcade - MAME":                     {"abbr": "ARC", "color": "#4a148c"},
+    "Sony - PlayStation":                {"abbr": "PS1", "color": "#003791"},
+    "Sony - PlayStation 2":              {"abbr": "PS2", "color": "#00439c"},
+    "Sony - PSP":                        {"abbr": "PSP", "color": "#003087"},
 }
 
 BADGE_TAGS: dict[str, tuple[str, str]] = {
@@ -97,13 +100,24 @@ class PlatformIconWidget(QWidget):
         p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._abbr)
 
 
+_HEALTH_ICON   = {"ok": "✅", "warning": "⚠️", "error": "❌"}
+_HEALTH_TOOLTIP = {
+    "ok":      "RetroArch, core e BIOS prontos",
+    "warning": "BIOS ausente — clique para detalhes",
+    "error":   "Core ou RetroArch não encontrado — clique para detalhes",
+}
+
+
 class PlatformItemWidget(QWidget):
+    healthClicked = pyqtSignal(str)   # emits platform name
+
     _STYLE_COUNT_IDLE = "font-size:10px;color:#6b7a99;background:transparent;border:none;"
     _STYLE_COUNT_SEL  = "font-size:10px;color:rgba(232,236,245,180);background:transparent;border:none;"
     _STYLE_COUNT_OFF  = "font-size:10px;color:#3d4f6e;background:transparent;border:none;"
 
     def __init__(self, name: str, count: int, parent=None):
         super().__init__(parent)
+        self._platform_name = name
         style = PLATFORM_STYLE.get(name, _default_style(name))
         self._full_name = _strip_manufacturer(name)
         self._available = count > 0
@@ -142,8 +156,21 @@ class PlatformItemWidget(QWidget):
         self._lbl_count = QLabel(count_txt)
         self._lbl_count.setStyleSheet(count_style)
 
+        # Health indicator — hidden until set_health() is called; flat button to allow click
+        self._btn_health = QPushButton()
+        self._btn_health.setFixedWidth(22)
+        self._btn_health.setFlat(True)
+        self._btn_health.setStyleSheet(
+            "QPushButton{font-size:11px;background:transparent;border:none;padding:0;}"
+        )
+        self._btn_health.setVisible(False)
+        self._btn_health.clicked.connect(
+            lambda: self.healthClicked.emit(self._platform_name)
+        )
+
         layout.addWidget(self._lbl_name)
         layout.addWidget(self._lbl_count)
+        layout.addWidget(self._btn_health)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -152,8 +179,9 @@ class PlatformItemWidget(QWidget):
     def _update_elided_name(self):
         fm = self._lbl_name.fontMetrics()
         count_w = self._lbl_count.sizeHint().width()
-        # icon(32) + left-margin(10) + spacing(10) + [name] + spacing(10) + count + right-margin(10)
-        available = self.width() - 72 - count_w
+        health_w = 26 if self._btn_health.isVisible() else 0
+        # icon(32) + left-margin(10) + spacing(10) + [name] + spacing(10) + count + health + right-margin(10)
+        available = self.width() - 72 - count_w - health_w
         elided = fm.elidedText(self._full_name, Qt.TextElideMode.ElideRight, max(available, 20))
         self._lbl_name.setText(elided)
 
@@ -163,6 +191,13 @@ class PlatformItemWidget(QWidget):
         self._lbl_count.setStyleSheet(
             self._STYLE_COUNT_SEL if selected else self._STYLE_COUNT_IDLE
         )
+
+    def set_health(self, severity: str):
+        """Update the health indicator icon. severity: 'ok' | 'warning' | 'error'."""
+        self._btn_health.setText(_HEALTH_ICON.get(severity, ""))
+        self._btn_health.setToolTip(_HEALTH_TOOLTIP.get(severity, ""))
+        self._btn_health.setVisible(bool(severity))
+        self._update_elided_name()
 
 
 class GameTitleDelegate(QStyledItemDelegate):

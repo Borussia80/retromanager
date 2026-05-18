@@ -25,6 +25,9 @@ CORE_MAP: dict[str, tuple[str, str]] = {
     "NEC - PC Engine / TurboGrafx-16":  ("mednafen_pce_libretro.so",    "Beetle PCE"),
     "SNK - Neo Geo MVS":                ("fbneo_libretro.so",            "FinalBurn Neo"),
     "Arcade - MAME":                    ("mame2003_plus_libretro.so",   "MAME 2003-Plus"),
+    "Sony - PlayStation":               ("mednafen_psx_hw_libretro.so", "Beetle PSX HW"),
+    "Sony - PlayStation 2":             ("pcsx2_libretro.so",           "PCSX2"),
+    "Sony - PSP":                       ("ppsspp_libretro.so",          "PPSSPP"),
 }
 
 SYSTEM_MAP: dict[str, str] = {
@@ -45,6 +48,9 @@ SYSTEM_MAP: dict[str, str] = {
     "NEC - PC Engine / TurboGrafx-16":  "NEC - PC Engine - TurboGrafx 16",
     "SNK - Neo Geo MVS":                "SNK - Neo Geo",
     "Arcade - MAME":                    "MAME",
+    "Sony - PlayStation":               "Sony - PlayStation",
+    "Sony - PlayStation 2":             "Sony - PlayStation 2",
+    "Sony - PSP":                       "Sony - PlayStation Portable",
 }
 
 _CONFIG_CANDIDATES = [

@@ -40,6 +40,8 @@ from retroarch_helper import RetroArchHelper
 from lutris_helper import LutrisHelper
 from empty_state import EmptyState
 from rom_detail_panel import RomDetailPanel
+from core.health import RetroArchHealthChecker
+from health_dialog import HealthDialog
 import library_service
 import mame_names as _mame_names
 
@@ -53,6 +55,7 @@ class MainWindow(QMainWindow):
         self.platforms = platforms
 
         self._retroarch = RetroArchHelper()
+        self._health_checker = RetroArchHealthChecker(self._retroarch)
         self._lutris = LutrisHelper()
         self._favorites = FavoritesManager()
         self._history = HistoryManager()
@@ -490,6 +493,7 @@ class MainWindow(QMainWindow):
 
         available = 0
         total = 0
+        self._platform_widgets: dict[str, PlatformItemWidget] = {}
         for name in self.platforms.getPlatforms():
             count = self.platforms.getRomsCount(name)
             total += count
@@ -501,11 +505,55 @@ class MainWindow(QMainWindow):
             if count == 0:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             widget = PlatformItemWidget(name, count)
+            widget.healthClicked.connect(self._onHealthClicked)
             self.lw_platforms.setItemWidget(item, widget)
+            self._platform_widgets[name] = widget
 
         self.statusbar_catalog.setText(
             f"{available}/{self.platforms.platformsCount()} plataformas  ·  {fmt_count(total)}"
         )
+        self._startHealthChecks()
+
+    def _startHealthChecks(self):
+        """Run health check for all known platforms in a background thread."""
+        platforms = list(self._platform_widgets.keys())
+        if not platforms:
+            return
+
+        class _HealthWorker(QObject):
+            done = pyqtSignal(str, str)   # platform, severity
+
+            def __init__(self, checker, platforms):
+                super().__init__()
+                self._checker = checker
+                self._platforms = platforms
+
+            def run(self):
+                for p in self._platforms:
+                    result = self._checker.check(p)
+                    self.done.emit(p, result.severity)
+
+        self._health_thread = QThread(self)
+        self._health_worker = _HealthWorker(self._health_checker, platforms)
+        self._health_worker.moveToThread(self._health_thread)
+        self._health_thread.started.connect(self._health_worker.run)
+        self._health_worker.done.connect(self._onHealthResult)
+        self._health_worker.done.connect(
+            lambda p, s: self._health_thread.quit() if p == platforms[-1] else None
+        )
+        self._health_thread.finished.connect(self._health_thread.deleteLater)
+        self._health_thread.finished.connect(self._health_worker.deleteLater)
+        self._health_thread.start()
+
+    def _onHealthResult(self, platform: str, severity: str):
+        widget = self._platform_widgets.get(platform)
+        if widget:
+            widget.set_health(severity)
+
+    def _onHealthClicked(self, platform: str):
+        health = self._health_checker.check(platform)
+        dlg = HealthDialog(health, self)
+        dlg.exec()
 
     def _loadMameNamesAsync(self):
         """Load MAME name cache in a background thread; harmless if XML not present."""

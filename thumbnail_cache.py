@@ -27,6 +27,9 @@ LIBRETRO_SYSTEM: dict[str, str | None] = {
     "NEC - PC Engine / TurboGrafx-16":   "NEC - PC Engine - TurboGrafx 16",
     "SNK - Neo Geo MVS":                 "SNK - Neo Geo",
     "Arcade - MAME":                     None,  # no standard box art in libretro
+    "Sony - PlayStation":                "Sony - PlayStation",
+    "Sony - PlayStation 2":              "Sony - PlayStation 2",
+    "Sony - PSP":                        "Sony - PlayStation Portable",
 }
 
 

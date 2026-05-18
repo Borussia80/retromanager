@@ -52,6 +52,9 @@ class PlatformsHelper:
         self._fts_available = self._setup_fts()
         if is_new_db:
             self._migrate_from_json()
+        self._migrate_v2()
+        if self._fts_available:
+            self._rebuild_fts()
 
     def _integrity_check(self) -> None:
         """Run PRAGMA integrity_check; drop and recreate the DB if corrupted (OBS-003)."""
@@ -126,6 +129,35 @@ class PlatformsHelper:
         self._db.commit()
         DebugHelper.print(DebugType.TYPE_INFO,
                           f"Migrated {len(rows)} ROMs from JSON to SQLite", "PLATFORMS")
+
+    def _migrate_v2(self) -> None:
+        """Add metadata columns to roms table. Idempotent — safe to call on every startup."""
+        with self._lock:
+            existing = {row[1] for row in self._db.execute("PRAGMA table_info(roms)")}
+            if "description" in existing:
+                return
+            self._db.executescript("""
+                ALTER TABLE roms ADD COLUMN description TEXT    NOT NULL DEFAULT '';
+                ALTER TABLE roms ADD COLUMN genre       TEXT    NOT NULL DEFAULT '';
+                ALTER TABLE roms ADD COLUMN year        INTEGER NOT NULL DEFAULT 0;
+                ALTER TABLE roms ADD COLUMN rating      REAL    NOT NULL DEFAULT 0.0;
+                ALTER TABLE roms ADD COLUMN cover_url   TEXT    NOT NULL DEFAULT '';
+                ALTER TABLE roms ADD COLUMN region      TEXT    NOT NULL DEFAULT '';
+                CREATE INDEX IF NOT EXISTS idx_roms_year   ON roms (year);
+                CREATE INDEX IF NOT EXISTS idx_roms_rating ON roms (rating);
+                CREATE INDEX IF NOT EXISTS idx_roms_region ON roms (region);
+            """)
+            self._db.commit()
+            _log.info("Schema migrated to v2 (metadata columns added)")
+
+    def _rebuild_fts(self) -> None:
+        """Incremental FTS5 rebuild — resync index with roms table without dropping it."""
+        try:
+            with self._lock:
+                self._db.execute("INSERT INTO roms_fts(roms_fts) VALUES('rebuild')")
+                self._db.commit()
+        except Exception as exc:
+            _log.warning("FTS rebuild failed (non-fatal): %s", exc)
 
     def platformsCount(self) -> int:
         with self._lock:

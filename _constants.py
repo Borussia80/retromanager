@@ -7,7 +7,7 @@ APP_NAME = "retromanager"
 _BASE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 
 VERSION_MAJOR = 2
-VERSION_MINOR = 1
+VERSION_MINOR = 3
 VERSION_REVISION = 0
 
 RESOURCES_FILE = os.path.join(_BASE, "resources.rcc")
@@ -59,4 +59,9 @@ ARCHIVE_PLATFORMS_DATA = [
 
     # Arcade — full MAME merged set (individual ZIPs inside mame-merged/ subdirectory)
     [ 'Arcade - MAME', 'zip', 'mame-merged' ],
+
+    # Sony — CHD images (PS1/PS2) and ZIP (PSP)
+    [ 'Sony - PlayStation',   'chd', 'no-intro_sony_playstation_chd'   ],
+    [ 'Sony - PlayStation 2', 'chd', 'redump-sony-playstation2-chd'    ],
+    [ 'Sony - PSP',           'zip', 'nointro.psp'                     ],
 ]

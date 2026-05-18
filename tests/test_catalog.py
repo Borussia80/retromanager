@@ -25,7 +25,9 @@ def ph(tmp_path, monkeypatch):
 
 def _insert(ph, platform, name, size=0, md5="", crc32="", sha1="", fmt="zip"):
     ph._db.execute(
-        "INSERT OR IGNORE INTO roms VALUES (?,?,?,?,?,?,?,?,?)",
+        "INSERT OR IGNORE INTO roms "
+        "(platform, name, source_id, file_path, size, md5, crc32, sha1, format) "
+        "VALUES (?,?,?,?,?,?,?,?,?)",
         (platform, name, "", "", size, md5, crc32, sha1, fmt),
     )
     ph._db.commit()

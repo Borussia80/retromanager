@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt, QUrl, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QFrame, QScrollArea,
+    QPushButton, QFrame, QScrollArea, QMessageBox,
 )
 from PyQt6.QtGui import QCursor, QDesktopServices
 
@@ -17,6 +17,7 @@ class RomDetailPanel(QWidget):
         super().__init__(parent)
         self._platform = ""
         self._rom_name = ""
+        self._rom_size = 0
         self._build_ui()
         self.clear()
 
@@ -167,6 +168,7 @@ class RomDetailPanel(QWidget):
                  rom_data: RomEntry, is_fav: bool):
         self._platform = platform
         self._rom_name = rom_name
+        self._rom_size = rom_data.size
 
         self._lbl_title.setText(display_name)
         self._lbl_platform.setText(platform)
@@ -210,8 +212,19 @@ class RomDetailPanel(QWidget):
         self._btn_fav.blockSignals(False)
 
     def _on_download(self):
-        if self._platform and self._rom_name:
-            self.downloadRequested.emit(self._platform, self._rom_name)
+        if not (self._platform and self._rom_name):
+            return
+        if self._rom_size and self._rom_size > 1_000_000_000:
+            reply = QMessageBox.question(
+                self,
+                "Arquivo grande",
+                f"Este arquivo tem {Tools.convertSizeToReadable(self._rom_size)}.\n"
+                "Deseja continuar o download?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+        self.downloadRequested.emit(self._platform, self._rom_name)
 
     def _on_fav(self):
         if self._platform and self._rom_name:
