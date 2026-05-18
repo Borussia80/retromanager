@@ -1,8 +1,11 @@
 import json
+import logging
 import os
 
 from PyQt6.QtCore import Qt, QItemSelection
 from PyQt6.QtWidgets import QDialog, QListWidgetItem, QMainWindow, QMessageBox
+
+_log = logging.getLogger("retromanager.download_queue")
 
 # Ui
 from ui.ui_DownloadQueue import Ui_DownloadQueue
@@ -116,8 +119,11 @@ class DownloadQueue(QDialog, Ui_DownloadQueue):
 
   def _save(self):
     os.makedirs(CACHE_DIR, exist_ok=True)
-    with open(_QUEUE_FILE, "w") as f:
-      json.dump(self.queue_dict, f)
+    try:
+      with open(_QUEUE_FILE, "w") as f:
+        json.dump(self.queue_dict, f)
+    except OSError as e:
+      _log.error("Failed to persist download queue to %s: %s", _QUEUE_FILE, e)
 
   def _load(self):
     try:

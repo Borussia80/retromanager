@@ -53,8 +53,13 @@ if __name__ == "__main__":
     apply_theme(app, settings.get("theme"))
 
     if not os.path.exists(PLATFORMS_CACHE_DB) or not Tools.isCacheValid(settings.get("cache_expiration")):
-        splash.set_status("Atualizando catálogo do Archive.org…")
+        from _constants import ARCHIVE_PLATFORMS_DATA as _APD
+        _total_platforms = len(_APD)
         cache = CacheGenerator(app)
+        cache.progress_callback = lambda done, total: splash.set_status(
+            f"Atualizando catálogo… ({done}/{total} plataformas)"
+        )
+        splash.set_status(f"Atualizando catálogo… (0/{_total_platforms} plataformas)")
         cache.run()
 
     splash.set_status("Carregando catálogo…")

@@ -1,3 +1,6 @@
+import json
+import logging
+import os
 import requests
 import threading
 import zipfile
@@ -10,6 +13,8 @@ from _constants import ARCHIVE_PLATFORMS_DATA, CACHE_DIR, PLATFORMS_CACHE_DB, PL
 from _platforms import PlatformsHelper
 from _settings import SettingsHelper
 from _debug import DebugHelper, DebugType
+
+_log = logging.getLogger("retromanager.tools")
 
 
 class CacheGenerator():
@@ -40,7 +45,6 @@ class CacheGenerator():
 
 
     def _ProcessPart(self, part_id: str):
-      import os, requests
       url = f"https://archive.org/metadata/{part_id}"
       try:
         response = requests.get(url, timeout=30)
@@ -69,24 +73,28 @@ class CacheGenerator():
         DebugHelper.print(DebugType.TYPE_ERROR, f"Could not fetch <{part_id}> from Archive: {e}", "CACHE")
 
 
-  def __init__(self, app: QApplication) -> None:
+  def __init__(self, app) -> None:
     self.app = app
     self.output_cache_json = {}
     self.threads = []
     self.workers = []
     self.download_completed = 0
     self.event_loop = None
+    # Optional callback: callable(completed: int, total: int) — called from the main thread
+    self.progress_callback = None
 
 
   def run(self):
-    import json, os
+    import sqlite3
+    from _platforms import _SCHEMA
 
     # Create workers and run them in separate threads (for speed)
     self.event_loop = QEventLoop()
-    [self.threads.append(QThread()) for _ in range(len(ARCHIVE_PLATFORMS_DATA))]
+    for entry in ARCHIVE_PLATFORMS_DATA:
+      self.threads.append(QThread())
 
-    for i in range(len(ARCHIVE_PLATFORMS_DATA)):
-      self.workers.append(CacheGenerator.PlatformWorker(ARCHIVE_PLATFORMS_DATA[i], self.output_cache_json))
+    for i, entry in enumerate(ARCHIVE_PLATFORMS_DATA):
+      self.workers.append(CacheGenerator.PlatformWorker(entry, self.output_cache_json))
       self.workers[i].moveToThread(self.threads[i])
       self.threads[i].started.connect(self.workers[i].run)
       self.workers[i].finished.connect(self._updateMessage)
@@ -94,15 +102,11 @@ class CacheGenerator():
       self.threads[i].finished.connect(self.threads[i].deleteLater)
       self.threads[i].start()
 
-    # Wait until workers finished without spinning the CPU.
-    QTimer.singleShot(120000, self.event_loop.quit)
+    # 5-minute ceiling — PS2 alone has 30 Archive.org items to fetch in parallel.
+    QTimer.singleShot(300_000, self.event_loop.quit)
     if self.download_completed != len(self.threads):
       self.event_loop.exec()
-    
-    # Write all fetched ROMs to the SQLite catalogue DB
-    import sqlite3
-    from _platforms import _SCHEMA
-    os.makedirs(CACHE_DIR, exist_ok=True)
+
     rows = []
     for platform in sorted(self.output_cache_json):
       for name, d in self.output_cache_json[platform].items():
@@ -113,6 +117,12 @@ class CacheGenerator():
           d.get('md5', ''), d.get('crc32', ''),
           d.get('sha1', ''), d.get('format', ''),
         ))
+
+    if not rows:
+      _log.warning("Catalog refresh returned 0 ROMs — keeping existing catalogue intact")
+      return
+
+    os.makedirs(CACHE_DIR, exist_ok=True)
     db = sqlite3.connect(PLATFORMS_CACHE_DB)
     try:
       db.executescript(_SCHEMA)
@@ -123,15 +133,19 @@ class CacheGenerator():
         rows,
       )
       db.commit()
+      _log.info("Catalog refreshed: %d ROMs across %d platforms", len(rows), len(self.output_cache_json))
     finally:
       db.close()
 
 
   def _updateMessage(self, platform_name: str):
     self.download_completed += 1
+    total = len(self.threads)
     DebugHelper.print(DebugType.TYPE_INFO,
-      f"({self.download_completed}/{len(self.threads)}) [{platform_name}] completed.", "CACHE")
-    if self.event_loop and self.download_completed == len(self.threads):
+      f"({self.download_completed}/{total}) [{platform_name}] completed.", "CACHE")
+    if callable(self.progress_callback):
+      self.progress_callback(self.download_completed, total)
+    if self.event_loop and self.download_completed == total:
       self.event_loop.quit()
 
 
@@ -354,16 +368,17 @@ class HashCheckWorker(QRunnable):
 class Tools():
   @staticmethod
   def convertSizeToReadable(size: int) -> str:
-    if size < 1000:
-      return '%i' % size + 'B'
-    elif 1000 <= size < 1000000:
-      return '%.1f' % float(size/1000) + ' KB'
-    elif 1000000 <= size < 1000000000:
-      return '%.1f' % float(size/1000000) + ' MB'
-    elif 1000000000 <= size < 1000000000000:
-      return '%.1f' % float(size/1000000000) + ' GB'
-    elif 1000000000000 <= size:
-      return '%.1f' % float(size/1000000000000) + ' TB'
+    if size <= 0:
+      return "—"
+    if size < 1_000:
+      return f"{size}B"
+    if size < 1_000_000:
+      return f"{size / 1_000:.1f} KB"
+    if size < 1_000_000_000:
+      return f"{size / 1_000_000:.1f} MB"
+    if size < 1_000_000_000_000:
+      return f"{size / 1_000_000_000:.1f} GB"
+    return f"{size / 1_000_000_000_000:.1f} TB"
 
 
   @staticmethod

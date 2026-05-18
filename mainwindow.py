@@ -1356,14 +1356,29 @@ class MainWindow(QMainWindow):
         if not self.lw_platforms.selectedItems():
             return
         platform = self.lw_platforms.selectedItems()[0].data(Qt.ItemDataRole.UserRole)
-        selected_names = [
-            self._row_shortname(row.row())
-            for row in self.tw_romsList.selectedIndexes()
-            if row.column() == 0 and not self.tw_romsList.isRowHidden(row.row())
-        ]
+        selected_names = []
+        already_downloaded = 0
+        for idx in self.tw_romsList.selectedIndexes():
+            if idx.column() != 0 or self.tw_romsList.isRowHidden(idx.row()):
+                continue
+            it = self.tw_romsList.item(idx.row(), 0)
+            if it and it.data(Qt.ItemDataRole.UserRole + 1):
+                already_downloaded += 1
+                continue
+            selected_names.append(self._row_shortname(idx.row()))
         added = self.download_queue.add(platform, selected_names)
         self._updateStatusbarQueueText()
-        self.statusBar().showMessage(f"{fmt_count(added)} adicionados à fila", 3000)
+        if already_downloaded and added:
+            self.statusBar().showMessage(
+                f"{fmt_count(added)} adicionados à fila · {fmt_count(already_downloaded)} já baixados ignorados",
+                4000,
+            )
+        elif already_downloaded:
+            self.statusBar().showMessage(
+                f"{fmt_count(already_downloaded)} ROM(s) já baixada(s) — nada adicionado à fila", 4000
+            )
+        else:
+            self.statusBar().showMessage(f"{fmt_count(added)} adicionados à fila", 3000)
 
     def _downloadNowContextMenu(self):
         sel = self.lw_platforms.selectedItems()
