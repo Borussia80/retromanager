@@ -16,9 +16,10 @@ from library_service import rom_matches_filters
 
 def _load_pixmap(path: str) -> QPixmap | None:
     """Load a pixmap via QPixmapCache to avoid redundant disk reads."""
+    cached = QPixmapCache.find(path)
+    if cached is not None:
+        return cached if not cached.isNull() else None
     px = QPixmap()
-    if QPixmapCache.find(path, px):
-        return px if not px.isNull() else None
     if px.load(path):
         QPixmapCache.insert(path, px)
         return px

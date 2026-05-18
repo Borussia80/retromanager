@@ -60,8 +60,7 @@ ARCHIVE_PLATFORMS_DATA = [
     # Arcade — full MAME merged set (individual ZIPs inside mame-merged/ subdirectory)
     [ 'Arcade - MAME', 'zip', 'mame-merged' ],
 
-    # Sony — CHD images (PS1/PS2) and ZIP (PSP)
-    [ 'Sony - PlayStation',   'chd', 'no-intro_sony_playstation_chd'   ],
-    [ 'Sony - PlayStation 2', 'chd', 'redump-sony-playstation2-chd'    ],
-    [ 'Sony - PSP',           'zip', 'nointro.psp'                     ],
+    # Sony — PS1/PS2/PSP CHD/ZIP collections removed from Archive.org (DMCA).
+    # These platforms are supported for local import, health check and RetroArch
+    # integration, but have no public Archive.org catalog source.
 ]
