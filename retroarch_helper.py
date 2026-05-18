@@ -1,10 +1,13 @@
 import json
+import logging
 import re
 import shutil
 import subprocess
 from pathlib import Path
 
 from core.plugins.base import EmulatorPlugin
+
+_log = logging.getLogger("retromanager.retroarch")
 
 
 CORE_MAP: dict[str, tuple[str, str]] = {
@@ -77,7 +80,7 @@ class RetroArchHelper(EmulatorPlugin):
         if not self._exe and self._config_dir:
             for name in ("retroarch", "retroarch-x86_64.AppImage"):
                 c = self._config_dir.parent / name
-                if c.exists():
+                if c.exists() and c.is_file():
                     self._exe = str(c)
                     break
         if not self._exe:
@@ -141,14 +144,20 @@ class RetroArchHelper(EmulatorPlugin):
 
     def launch(self, platform: str, rom_path: str) -> bool:
         if not self._exe:
+            _log.warning("launch called but no RetroArch executable was detected")
             return False
         core = self.core_path(platform)
         cmd = [self._exe]
         if core:
             cmd += ["-L", core]
         cmd.append(rom_path)
-        subprocess.Popen(cmd)
-        return True
+        _log.debug("launching: %s", " ".join(cmd))
+        try:
+            subprocess.Popen(cmd)
+            return True
+        except OSError as e:
+            _log.error("RetroArch launch failed: %s", e)
+            return False
 
     def add_to_playlist(self, platform: str, rom_name: str, rom_path: str) -> bool:
         if not self._config_dir:
