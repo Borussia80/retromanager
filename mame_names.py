@@ -9,9 +9,12 @@ Parsing uses iterparse so the full XML (~350 MB) is never held in memory.
 """
 
 import json
+import logging
 import os
 import xml.etree.ElementTree as ET
 from _constants import MAME_NAMES_CACHE, CACHE_DIR
+
+_log = logging.getLogger("retromanager.mame_names")
 
 SEARCH_PATHS = [
     os.path.join(CACHE_DIR, "mame.xml"),
@@ -68,7 +71,8 @@ def load() -> dict[str, str]:
         names = _parse_xml(xml_path)
         _save(names)
         return names
-    except Exception:
+    except (ET.ParseError, OSError) as e:
+        _log.warning("failed to parse MAME XML at %s: %s", xml_path, e)
         return {}
 
 

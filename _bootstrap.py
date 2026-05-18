@@ -85,8 +85,8 @@ def install_crash_hook() -> None:
                 lay.addWidget(tb_edit, 1)
                 lay.addWidget(btn)
                 dlg.exec()
-        except Exception:
-            pass
+        except Exception as e:
+            _crash_log.debug("crash dialog failed to display: %s", e)
         sys.__excepthook__(exc_type, exc_value, exc_tb)
 
     sys.excepthook = _excepthook

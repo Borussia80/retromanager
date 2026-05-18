@@ -79,8 +79,8 @@ class DownloadEngine(QObject):
 
         cancel_event = threading.Event()
 
-        worker = DownloadWorker(self._settings, self._platforms, [(platform, rom_name)])
-        worker._cancel = cancel_event
+        worker = DownloadWorker(self._settings, self._platforms, [(platform, rom_name)],
+                                cancel_event=cancel_event)
 
         thread = QThread()
         worker.moveToThread(thread)

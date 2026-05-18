@@ -14,4 +14,7 @@ class Notifier(QObject):
         if icon:
             cmd += ["-i", icon]
         cmd += [title, body]
-        subprocess.Popen(cmd)
+        try:
+            subprocess.Popen(cmd)
+        except FileNotFoundError:
+            pass

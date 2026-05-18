@@ -3,15 +3,13 @@ import threading
 import zipfile
 
 # Qt
-from PyQt6.QtCore import *
-from PyQt6.QtGui import *
-from PyQt6.QtWidgets import *
+from PyQt6.QtCore import QEventLoop, QObject, QRunnable, QThread, QTimer, pyqtSignal
 
 # Helpers
-from _constants import *
+from _constants import ARCHIVE_PLATFORMS_DATA, CACHE_DIR, PLATFORMS_CACHE_DB, PLATFORMS_CACHE_FILENAME
 from _platforms import PlatformsHelper
 from _settings import SettingsHelper
-from _debug import *
+from _debug import DebugHelper, DebugType
 
 
 class CacheGenerator():
@@ -102,9 +100,6 @@ class CacheGenerator():
     import sqlite3
     from _platforms import _SCHEMA
     os.makedirs(CACHE_DIR, exist_ok=True)
-    db = sqlite3.connect(PLATFORMS_CACHE_DB)
-    db.executescript(_SCHEMA)
-    db.execute("DELETE FROM roms")
     rows = []
     for platform in sorted(self.output_cache_json):
       for name, d in self.output_cache_json[platform].items():
@@ -115,9 +110,18 @@ class CacheGenerator():
           d.get('md5', ''), d.get('crc32', ''),
           d.get('sha1', ''), d.get('format', ''),
         ))
-    db.executemany("INSERT INTO roms VALUES (?,?,?,?,?,?,?,?,?)", rows)
-    db.commit()
-    db.close()
+    db = sqlite3.connect(PLATFORMS_CACHE_DB)
+    try:
+      db.executescript(_SCHEMA)
+      db.execute("DELETE FROM roms")
+      db.executemany(
+        "INSERT INTO roms (platform, name, source_id, file_path, size, md5, crc32, sha1, format)"
+        " VALUES (?,?,?,?,?,?,?,?,?)",
+        rows,
+      )
+      db.commit()
+    finally:
+      db.close()
 
 
   def _updateMessage(self, platform_name: str):
@@ -138,12 +142,14 @@ class DownloadWorker(QObject):
   finished = pyqtSignal()
 
 
-  def __init__(self, settings: SettingsHelper, platforms: PlatformsHelper, queue_items: list[tuple[str, str]]):
+  def __init__(self, settings: SettingsHelper, platforms: PlatformsHelper,
+               queue_items: list[tuple[str, str]],
+               cancel_event: threading.Event | None = None):
     super().__init__(None)
     self.settings = settings
     self.platforms = platforms
     self.queue_items = queue_items
-    self._cancel = threading.Event()
+    self._cancel = cancel_event if cancel_event is not None else threading.Event()
 
 
   def cancel(self):

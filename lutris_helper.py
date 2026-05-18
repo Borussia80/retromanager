@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import shutil
@@ -9,6 +10,7 @@ import yaml
 
 from core.plugins.base import EmulatorPlugin
 
+_log = logging.getLogger("retromanager.lutris")
 
 _DB_CANDIDATES = [
     Path.home() / ".local" / "share" / "lutris" / "pga.db",
@@ -52,24 +54,26 @@ class LutrisHelper(EmulatorPlugin):
     def game_count(self) -> int:
         if not self._db or not self._db.exists():
             return 0
+        import sqlite3
         try:
-            import sqlite3
             conn = sqlite3.connect(self._db)
-            cur = conn.execute("SELECT COUNT(*) FROM games WHERE installed=1")
-            n = cur.fetchone()[0]
-            conn.close()
+            try:
+                n = conn.execute("SELECT COUNT(*) FROM games WHERE installed=1").fetchone()[0]
+            finally:
+                conn.close()
             return n
-        except Exception:
+        except sqlite3.DatabaseError as e:
+            _log.warning("lutris game_count failed: %s", e)
             return 0
-
-    @staticmethod
-    def _slug(name: str) -> str:
-        clean = re.sub(r'\s*\([^)]+\)', '', name).strip()
-        return re.sub(r'[^a-z0-9]+', '-', clean.lower()).strip('-')[:50]
 
     @staticmethod
     def _clean_name(name: str) -> str:
         return re.sub(r'\s*\([^)]+\)', '', name).strip()
+
+    @staticmethod
+    def _slug(name: str) -> str:
+        clean = LutrisHelper._clean_name(name)
+        return re.sub(r'[^a-z0-9]+', '-', clean.lower()).strip('-')[:50]
 
     def launch(self, platform: str, rom_path: str) -> bool:
         """Launch via Lutris requires a registered game entry; not supported directly."""
@@ -124,7 +128,17 @@ class LutrisHelper(EmulatorPlugin):
             ) as f:
                 f.write(yaml_text)
                 tmp_path = f.name
+        except OSError as e:
+            _log.warning("lutris: failed to write installer YAML: %s", e)
+            return False
+
+        try:
             subprocess.Popen([self._exe, "-i", tmp_path])
             return True
-        except Exception:
+        except OSError as e:
+            _log.warning("lutris: failed to launch installer: %s", e)
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
             return False

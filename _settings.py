@@ -1,9 +1,10 @@
-import json, os, pickle
-from typing import Any, Tuple
+import json
+import os
+import pickle
+from typing import Any
 
-# Helper
-from _constants import *
-from _debug import *
+from _constants import CONFIG_DIR, CACHE_DIR, DEFAULT_DOWNLOAD_DIR, SETTINGS_FILE
+from _debug import DebugHelper, DebugType
 
 
 
@@ -36,7 +37,7 @@ class SettingsHelper():
       raise ValueError(f"Setting <{option}> not found.")
 
 
-  def update(self, option: Tuple[str, Any]):
+  def update(self, option: tuple[str, Any]):
     key, value = option
     if key not in self._settings:
       raise ValueError(f"Setting <{key}> not found.")
