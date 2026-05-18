@@ -60,7 +60,51 @@ ARCHIVE_PLATFORMS_DATA = [
     # Arcade — full MAME merged set (individual ZIPs inside mame-merged/ subdirectory)
     [ 'Arcade - MAME', 'zip', 'mame-merged' ],
 
-    # Sony — PS1/PS2/PSP CHD/ZIP collections removed from Archive.org (DMCA).
-    # These platforms are supported for local import, health check and RetroArch
-    # integration, but have no public Archive.org catalog source.
+    # Sony PlayStation — Hearto 2024 1G1R clean sets (ZIP/BIN format, format=ZIP ✓)
+    [ 'Sony - PlayStation', 'zip', [
+        '2024-sony-playstation-usa-hearto-1g1r-collection',
+        '2024-sony-playstation-eur-hearto-1g1r-collection',
+        '2024-sony-playstation-jap-hearto-1g1r-collection',
+    ]],
+
+    # Sony PlayStation 2 — Redump CHD split by letter (format=Unknown on Archive.org;
+    # _ProcessPart matches by extension only to handle this inconsistency)
+    [ 'Sony - PlayStation 2', 'chd', [
+        'sony-playstation-2-0-redump-collection',
+        'sony-playstation-2-a-redump-collection',
+        'sony-playstation-2-b-redump-collection',
+        'sony-playstation-2-c-redump-collection',
+        'sony-playstation-2-d0-dm-redump-collection',
+        'sony-playstation-2-dn-dz-redump-collection',
+        'sony-playstation-2-e-redump-collection',
+        'sony-playstation-2-f-redump-collection',
+        'sony-playstation-2-g-redump-collection',
+        'sony-playstation-2-h-redump-collection',
+        'sony-playstation-2-i-redump-collection',
+        'sony-playstation-2-j-redump-collection',
+        'sony-playstation-2-k-redump-collection',
+        'sony-playstation-2-l-redump-collection',
+        'sony-playstation-2-m0-mm-redump-collection',
+        'sony-playstation-2-n-redump-collection',
+        'sony-playstation-2-o0-om-redump-collection',
+        'sony-playstation-2-on-oz-redump-collection',
+        'sony-playstation-2-q-redump-collection',
+        'sony-playstation-2-r-redump-collection',
+        'sony-playstation-2-s0-sh-redump-collection',
+        'sony-playstation-2-si-so-redump-collection',
+        'sony-playstation-2-sp-sq-redump-collection',
+        'sony-playstation-2-sr-sz-redump-collection',
+        'sony-playstation-2-t-redump-collection',
+        'sony-playstation-2-u-redump-collection',
+        'sony-playstation-2-v-redump-collection',
+        'sony-playstation-2-x-redump-collection',
+        'sony-playstation-2-y-redump-collection',
+        'sony-playstation-2-z-redump-collection',
+    ]],
+
+    # Sony PSP — Redump CHD in two parts (format field varies; matched by extension)
+    [ 'Sony - PSP', 'chd', [
+        'psp-chd-zstd-redump-part1',
+        'psp-chd-zstd-redump-part2',
+    ]],
 ]

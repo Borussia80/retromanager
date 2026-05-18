@@ -51,7 +51,10 @@ class CacheGenerator():
         for file_data in part_files:
           file_path = file_data.get('name', '')
           file_basename = os.path.basename(file_path)
-          if file_data.get('format', '').lower() == self.format and file_basename.lower().endswith(f".{self.format}"):
+          # Archive.org's 'format' field is unreliable for CHD files
+          # (returns 'Unknown' or 'H.263' depending on the item). Match by
+          # file extension only — the platform entry defines the expected format.
+          if file_basename.lower().endswith(f".{self.format}"):
             rom_key = file_basename[:-(len(self.format) + 1)]
             self.output_cache_json[self.id_name][rom_key] = {
               "source_id": part_id,
