@@ -41,6 +41,11 @@ if __name__ == "__main__":
     app.setWindowIcon(_icon)
     QResource.registerResource(RESOURCES_FILE)
 
+    from splash import SplashScreen
+    splash = SplashScreen()
+    splash.show()
+    splash.set_status("Carregando configurações…")
+
     settings = SettingsHelper()
     updater = UpdaterHelper()
     StartupTimer.mark("settings_loaded")
@@ -48,15 +53,19 @@ if __name__ == "__main__":
     apply_theme(app, settings.get("theme"))
 
     if not os.path.exists(PLATFORMS_CACHE_DB) or not Tools.isCacheValid(settings.get("cache_expiration")):
+        splash.set_status("Atualizando catálogo do Archive.org…")
         cache = CacheGenerator(app)
         cache.run()
 
+    splash.set_status("Carregando catálogo…")
     platforms = PlatformsHelper()
     StartupTimer.mark("platforms_loaded")
 
+    splash.set_status("Iniciando interface…")
     mainWindow = MainWindow(settings, updater, platforms)
     StartupTimer.mark("mainwindow_created")
     StartupTimer.report()
 
     mainWindow.show()
+    splash.finish(mainWindow)
     sys.exit(app.exec())
