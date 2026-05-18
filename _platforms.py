@@ -156,7 +156,7 @@ class PlatformsHelper:
             with self._lock:
                 self._db.execute("INSERT INTO roms_fts(roms_fts) VALUES('rebuild')")
                 self._db.commit()
-        except Exception as exc:
+        except sqlite3.OperationalError as exc:
             _log.warning("FTS rebuild failed (non-fatal): %s", exc)
 
     def platformsCount(self) -> int:

@@ -189,6 +189,7 @@ class RomDetailPanel(QWidget):
     def clear(self):
         self._platform = ""
         self._rom_name = ""
+        self._rom_size = 0
         self._lbl_title.setText("Nenhuma ROM selecionada")
         self._lbl_platform.setText("")
         self._lbl_size.setText("—")

@@ -25,6 +25,7 @@ class PlatformHealth:
     core_installed: bool
     core_path: str | None
     core_name: str
+    bios_dir: str | None = None       # path to RetroArch system/ dir for BIOS placement
     bios_required: list[str] = field(default_factory=list)
     bios_found: list[str] = field(default_factory=list)
     bios_missing: list[str] = field(default_factory=list)
@@ -48,12 +49,22 @@ class RetroArchHealthChecker:
         self._ra = retroarch
 
     def check(self, platform: str) -> PlatformHealth:
+        """Check RetroArch readiness for platform: installation, core, and BIOS files.
+
+        Returns a PlatformHealth with severity 'ok', 'warning', or 'error'.
+        'warning' means RetroArch and core are present but at least one BIOS file is missing.
+        'error' means RetroArch or the core itself is not installed.
+        """
+        bios_dir: Path | None = (
+            (self._ra.config_dir / "system") if self._ra.config_dir else None
+        )
         health = PlatformHealth(
             platform=platform,
             retroarch_found=self._ra.detected,
             core_installed=False,
             core_path=None,
             core_name=self._ra.core_name(platform),
+            bios_dir=str(bios_dir) if bios_dir else None,
             bios_required=list(BIOS_REQUIRED.get(platform, [])),
         )
 
@@ -70,9 +81,6 @@ class RetroArchHealthChecker:
                 "Instale via RetroArch → Núcleos Online."
             )
 
-        bios_dir: Path | None = (
-            (self._ra.config_dir / "system") if self._ra.config_dir else None
-        )
         for bios_file in health.bios_required:
             if bios_dir and (bios_dir / bios_file).exists():
                 health.bios_found.append(bios_file)
@@ -83,4 +91,5 @@ class RetroArchHealthChecker:
         return health
 
     def check_all(self, platforms: list[str]) -> dict[str, PlatformHealth]:
+        """Run check() for each platform and return results keyed by platform name."""
         return {p: self.check(p) for p in platforms}

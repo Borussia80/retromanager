@@ -532,15 +532,14 @@ class MainWindow(QMainWindow):
                 for p in self._platforms:
                     result = self._checker.check(p)
                     self.done.emit(p, result.severity)
+                from PyQt6.QtCore import QThread as _QThread
+                _QThread.currentThread().quit()
 
         self._health_thread = QThread(self)
         self._health_worker = _HealthWorker(self._health_checker, platforms)
         self._health_worker.moveToThread(self._health_thread)
         self._health_thread.started.connect(self._health_worker.run)
         self._health_worker.done.connect(self._onHealthResult)
-        self._health_worker.done.connect(
-            lambda p, s: self._health_thread.quit() if p == platforms[-1] else None
-        )
         self._health_thread.finished.connect(self._health_thread.deleteLater)
         self._health_thread.finished.connect(self._health_worker.deleteLater)
         self._health_thread.start()

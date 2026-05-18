@@ -1,6 +1,5 @@
 """Dialog showing RetroArch health details for a platform."""
 import subprocess
-from pathlib import Path
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
@@ -71,8 +70,8 @@ class HealthDialog(QDialog):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
-        if not self._health.ready and self._health.retroarch_found:
-            bios_dir = self._bios_dir()
+        if not self._health.ready and self._health.bios_dir:
+            bios_dir = self._health.bios_dir
             if bios_dir:
                 btn_open = QPushButton("Abrir pasta de BIOS")
                 btn_open.setStyleSheet(
@@ -114,15 +113,8 @@ class HealthDialog(QDialog):
         )
         return f
 
-    def _bios_dir(self) -> str | None:
-        if self._health.retroarch_found and self._health.core_installed:
-            from retroarch_helper import RetroArchHelper
-            ra = RetroArchHelper()
-            if ra.config_dir:
-                return str(ra.config_dir / "system")
-        return None
-
     @staticmethod
     def _open_bios_folder(path: str):
-        Path(path).mkdir(parents=True, exist_ok=True)
+        import os
+        os.makedirs(path, exist_ok=True)
         subprocess.Popen(["xdg-open", path])
