@@ -1,4 +1,4 @@
-# Community announcement posts — RetroManager v2.3.2
+# Community announcement posts — RetroManager v2.3.3
 
 Use these when posting to communities. Adapt tone per platform.
 
@@ -7,10 +7,10 @@ Use these when posting to communities. Adapt tone per platform.
 ## Reddit — r/linux_gaming  r/emulation  r/linux
 
 **Title:**
-> RetroManager v2.3.2 — browse & download retro ROMs from Archive.org on Linux (PyQt6, AppImage)
+> RetroManager v2.3.3 — browse & download retro ROMs from Archive.org on Linux (PyQt6, AppImage)
 
 **Body:**
-> I've been building a ROM manager for Linux and just released v2.3.2.
+> I've been building a ROM manager for Linux and just released v2.3.3.
 >
 > **What it does:**
 > - Browse and download ROMs directly from Archive.org (NES, SNES, N64, GB/GBC/GBA, Sega, Atari, NEC, SNK, MAME, PlayStation, PS2, PSP)
@@ -20,8 +20,10 @@ Use these when posting to communities. Adapt tone per platform.
 > - Favorites, history, cover art thumbnails, Lutris integration
 > - Dark PyQt6 UI, ships as a self-contained AppImage
 >
+> **v2.3.3 fixes:** RetroArch Flatpak detection, crash on double-click in history view, download button now shows "✓ Já baixado" for files already on disk.
+>
 > **GitHub:** https://github.com/Borussia80/retromanager
-> **Download:** https://github.com/Borussia80/retromanager/releases/tag/v2.3.2
+> **Download:** https://github.com/Borussia80/retromanager/releases/tag/v2.3.3
 >
 > Feedback, bug reports and PRs very welcome!
 
@@ -40,7 +42,7 @@ Same text as Reddit — Lemmy renders Markdown identically.
 - **Linux Gamers** (various servers) → #projects or #tools
 
 **Short message for Discord:**
-> 🕹️ **RetroManager v2.3.2** — Linux ROM manager that browses/downloads from Archive.org
+> 🕹️ **RetroManager v2.3.3** — Linux ROM manager that browses/downloads from Archive.org
 > Supports NES/SNES/N64/GB/GBC/GBA/Sega/Atari/MAME/PS1/PS2/PSP · RetroArch health check · Lutris integration · AppImage
 > https://github.com/Borussia80/retromanager
 
@@ -48,7 +50,7 @@ Same text as Reddit — Lemmy renders Markdown identically.
 
 ## Mastodon / Fediverse
 
-> 🕹️ Released RetroManager v2.3.2 — a Linux ROM manager that browses & downloads from Archive.org.
+> 🕹️ Released RetroManager v2.3.3 — a Linux ROM manager that browses & downloads from Archive.org.
 >
 > ✅ Supports 13 platforms (NES → PSP)
 > ✅ RetroArch health check per platform
@@ -83,7 +85,7 @@ links:
   - type: GitHub
     url: https://github.com/Borussia80/retromanager
   - type: Download
-    url: https://github.com/Borussia80/retromanager/releases
+    url: https://github.com/Borussia80/retromanager/releases/tag/v2.3.3
 screenshots:
   - https://raw.githubusercontent.com/Borussia80/retromanager/main/docs/screenshots/rom_list.png
   - https://raw.githubusercontent.com/Borussia80/retromanager/main/docs/screenshots/grid_view.png
