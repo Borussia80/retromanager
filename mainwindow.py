@@ -1011,11 +1011,12 @@ class MainWindow(QMainWindow):
         rom_name = self._row_shortname(row)
         display_name = it.text()
         is_fav = bool(it.data(Qt.ItemDataRole.UserRole + 2))
+        is_downloaded = bool(it.data(Qt.ItemDataRole.UserRole + 1))
         rom_data = self.platforms.getRom(platform, rom_name) if platform else None
         if not rom_data:
             self._detail_panel.clear()
             return
-        self._detail_panel.show_rom(platform, rom_name, display_name, rom_data, is_fav)
+        self._detail_panel.show_rom(platform, rom_name, display_name, rom_data, is_fav, is_downloaded)
 
     def _onDetailDownload(self, platform: str, rom_name: str):
         added = self.download_queue.add(platform, [rom_name])
@@ -1365,6 +1366,9 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"{fmt_count(added)} adicionados à fila", 3000)
 
     def _downloadNowContextMenu(self):
+        sel = self.lw_platforms.selectedItems()
+        if not sel or sel[0].data(Qt.ItemDataRole.UserRole) in _PSEUDO_KEYS:
+            return
         self._addToQueue()
         self._launchRomsDownload()
 
@@ -1439,7 +1443,7 @@ class MainWindow(QMainWindow):
         self.download_panel.complete_item(rom_name)
         self._updateStatusbarQueueText()
         self._notifier.send("Download concluído", f"{rom_name} está pronto para jogar.")
-        # Update ✓ badge in the table immediately without re-selecting the platform
+        # Update ✓ badge in the table and detail panel immediately
         for i in range(self.tw_romsList.rowCount()):
             it = self.tw_romsList.item(i, 0)
             shortname = (it.data(Qt.ItemDataRole.UserRole + 3) or it.text()) if it else None
@@ -1447,6 +1451,8 @@ class MainWindow(QMainWindow):
                 it.setData(Qt.ItemDataRole.UserRole + 1, True)
                 self.tw_romsList.viewport().update()
                 break
+        if self._detail_panel._rom_name == rom_name:
+            self._detail_panel.sync_downloaded(True)
 
     def _onDownloadFailedItem(self, platform: str, rom_name: str, error: str):
         self.download_failed = True

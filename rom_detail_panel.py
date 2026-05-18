@@ -165,7 +165,7 @@ class RomDetailPanel(QWidget):
         return val
 
     def show_rom(self, platform: str, rom_name: str, display_name: str,
-                 rom_data: RomEntry, is_fav: bool):
+                 rom_data: RomEntry, is_fav: bool, is_downloaded: bool = False):
         self._platform = platform
         self._rom_name = rom_name
         self._rom_size = rom_data.size
@@ -182,7 +182,7 @@ class RomDetailPanel(QWidget):
         self._btn_fav.setChecked(is_fav)
         self._btn_fav.setText("★  Desfavoritar" if is_fav else "★  Favoritar")
         self._btn_fav.blockSignals(False)
-        self._btn_dl.setEnabled(True)
+        self._apply_download_state(is_downloaded)
         self._btn_fav.setEnabled(True)
         self._btn_archive.setVisible(True)
 
@@ -211,6 +211,33 @@ class RomDetailPanel(QWidget):
         self._btn_fav.setChecked(is_fav)
         self._btn_fav.setText("★  Desfavoritar" if is_fav else "★  Favoritar")
         self._btn_fav.blockSignals(False)
+
+    def sync_downloaded(self, is_downloaded: bool):
+        """Update download button state after a download completes."""
+        self._apply_download_state(is_downloaded)
+
+    def _apply_download_state(self, is_downloaded: bool):
+        if is_downloaded:
+            self._btn_dl.setText("✓  Já baixado")
+            self._btn_dl.setEnabled(False)
+            self._btn_dl.setStyleSheet("""
+                QPushButton {
+                    background:#1a3a26;border:none;border-radius:6px;
+                    color:#34c97e;font-size:12px;font-weight:600;
+                }
+                QPushButton:disabled { background:#1a3a26;color:#34c97e; }
+            """)
+        else:
+            self._btn_dl.setText("Baixar")
+            self._btn_dl.setEnabled(True)
+            self._btn_dl.setStyleSheet("""
+                QPushButton {
+                    background:#4f8ef7;border:none;border-radius:6px;
+                    color:#fff;font-size:12px;font-weight:600;
+                }
+                QPushButton:hover { background:#3a7ae0; }
+                QPushButton:disabled { background:#252d40;color:#3a4a6b; }
+            """)
 
     def _on_download(self):
         if not (self._platform and self._rom_name):
