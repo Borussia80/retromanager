@@ -16,6 +16,35 @@
 
 ---
 
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/rom_list.png" alt="ROM browser" /></td>
+    <td><img src="docs/screenshots/search.png" alt="Full-text search" /></td>
+  </tr>
+  <tr>
+    <td align="center"><em>ROM browser with platform sidebar</em></td>
+    <td align="center"><em>Full-text search across 40k+ ROMs</em></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/grid_view.png" alt="Grid view with cover art" /></td>
+    <td><img src="docs/screenshots/download.png" alt="Download queue" /></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Grid view with cover art</em></td>
+    <td align="center"><em>Concurrent download queue with progress</em></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/detail.png" alt="ROM detail panel" /></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><em>ROM detail panel — metadata, hashes and download</em></td>
+  </tr>
+</table>
+
+---
+
 ## Features
 
 - **Browse & download** ROMs from Archive.org — Nintendo, Sega, Atari, SNK, NEC, Arcade (MAME), Sony PlayStation / PS2 / PSP
@@ -90,6 +119,10 @@ ruff check .
 # Build AppImage
 bash packaging/build_appimage.sh
 ```
+
+## Contributing
+
+Issues and pull requests are welcome! Check the [Discussions](https://github.com/Borussia80/retromanager/discussions) tab for roadmap and ideas.
 
 ## License
 
