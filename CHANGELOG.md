@@ -5,6 +5,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [2.3.12] - 2026-05-19
+
+### Adicionado
+- Auto-atualização integrada: quando rodando como AppImage e uma nova versão é detectada, o app oferece "Baixar e instalar" — faz download do novo AppImage com barra de progresso, substitui o arquivo em disco e oferece reiniciar imediatamente
+
+---
+
 ## [2.3.11] - 2026-05-19
 
 ### Corrigido

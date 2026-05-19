@@ -1,14 +1,18 @@
 import os
+import stat
+import sys
+import tempfile
 
 from PyQt6.QtCore import (
     Qt, QObject, QPoint, QSize, QUrl,
     QStringListModel, QThread, QThreadPool, QTimer, pyqtSignal,
 )
 from PyQt6.QtGui import QAction, QColor, QCursor, QDesktopServices, QIcon, QKeySequence, QShortcut
+from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCompleter, QDialog, QFileDialog, QHeaderView,
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QMainWindow, QMenu, QMessageBox, QPushButton, QSplitter,
+    QMainWindow, QMenu, QMessageBox, QProgressDialog, QPushButton, QSplitter,
     QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -77,6 +81,8 @@ class MainWindow(QMainWindow):
         self._mame_names: dict[str, str] = {}
         self._mame_names_loading = False
         self._update_available = False
+        self._latest_appimage_url = ""
+        self._update_tmp_file = None
 
         self.filter_timer = QTimer(self)
         self.filter_timer.setSingleShot(True)
@@ -411,7 +417,7 @@ class MainWindow(QMainWindow):
 
         self.statusbar_update = QLabel()
         self.statusbar_update.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.statusbar_update.mousePressEvent = lambda _: self._askUpdate() if self._update_available else None
+        self.statusbar_update.mousePressEvent = lambda _: self._askUpdate(self._latest_appimage_url) if self._update_available else None
         self.statusBar().addPermanentWidget(self.statusbar_update)
 
         # Integrations indicator — shown only when at least one is detected
@@ -1520,6 +1526,94 @@ class MainWindow(QMainWindow):
                 f"{fmt_count(self.download_completed_count)} baixados.", 5000
             )
 
+    def _startAutoUpdate(self, url: str):
+        appimage_path = os.environ.get('APPIMAGE', '')
+        if not appimage_path:
+            return
+        appimage_dir = os.path.dirname(appimage_path) or os.path.expanduser('~')
+        try:
+            self._update_tmp_file = tempfile.NamedTemporaryFile(
+                delete=False, suffix='.AppImage', dir=appimage_dir
+            )
+        except OSError as e:
+            QMessageBox.critical(self, "Atualização", f"Não foi possível criar arquivo temporário: {e}")
+            return
+
+        self._update_progress = QProgressDialog(
+            "Baixando atualização…", "Cancelar", 0, 100, self
+        )
+        self._update_progress.setWindowTitle("Atualizando retromanager")
+        self._update_progress.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self._update_progress.setMinimumDuration(0)
+        self._update_progress.setValue(0)
+
+        self._update_manager = QNetworkAccessManager(self)
+        request = QNetworkRequest(QUrl(url))
+        request.setAttribute(
+            QNetworkRequest.Attribute.RedirectPolicyAttribute,
+            QNetworkRequest.RedirectPolicy.NoLessSafeRedirectPolicy
+        )
+        self._update_reply = self._update_manager.get(request)
+        self._update_reply.downloadProgress.connect(self._onUpdateDownloadProgress)
+        self._update_reply.readyRead.connect(self._onUpdateReadyRead)
+        self._update_reply.finished.connect(
+            lambda: self._onUpdateDownloaded(appimage_path)
+        )
+        self._update_progress.canceled.connect(self._update_reply.abort)
+        self._update_progress.show()
+
+    def _onUpdateDownloadProgress(self, received: int, total: int):
+        if total > 0 and hasattr(self, '_update_progress') and self._update_progress:
+            self._update_progress.setValue(int(received * 100 / total))
+
+    def _onUpdateReadyRead(self):
+        if self._update_tmp_file:
+            self._update_tmp_file.write(bytes(self._update_reply.readAll()))
+
+    def _onUpdateDownloaded(self, appimage_path: str):
+        self._update_progress.close()
+        self._update_progress = None
+
+        reply = self._update_reply
+        tmp_path = self._update_tmp_file.name
+        self._update_tmp_file.close()
+        self._update_tmp_file = None
+
+        if reply.error() != QNetworkReply.NetworkError.NoError:
+            reply.deleteLater()
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            if reply.error() != QNetworkReply.NetworkError.OperationCanceledError:
+                QMessageBox.warning(self, "Atualização",
+                                    f"Falha no download: {reply.errorString()}")
+            return
+
+        reply.deleteLater()
+
+        try:
+            cur_mode = os.stat(tmp_path).st_mode
+            os.chmod(tmp_path, cur_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            os.rename(tmp_path, appimage_path)
+        except OSError as e:
+            QMessageBox.critical(self, "Atualização", f"Não foi possível instalar: {e}")
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            return
+
+        self._update_available = False
+        self.statusbar_update.setText("Atualizado.")
+        ans = QMessageBox.question(
+            self, "Atualização instalada",
+            f"retromanager {self.updater.latestVersionString()} instalado com sucesso.\n\n"
+            "Reiniciar agora?"
+        )
+        if ans == QMessageBox.StandardButton.Yes:
+            os.execv(appimage_path, [appimage_path] + sys.argv[1:])
+
     def _cancelDownload(self):
         if self.download_worker:
             self.download_worker.cancel()
@@ -1558,31 +1652,34 @@ class MainWindow(QMainWindow):
             return
 
         class _Worker(QObject):
-            done = pyqtSignal(bool)
+            done = pyqtSignal(bool, str)   # available, appimage_url
 
             def __init__(self, updater):
                 super().__init__()
                 self._updater = updater
 
             def run(self):
-                self.done.emit(self._updater.updateAvailable())
+                available = self._updater.updateAvailable()
+                url = self._updater.latestAppImageUrl() if available else ""
+                self.done.emit(available, url)
 
         self._update_thread = QThread(self)
         self._update_worker = _Worker(self.updater)
         self._update_worker.moveToThread(self._update_thread)
         self._update_thread.started.connect(self._update_worker.run)
         self._update_worker.done.connect(
-            lambda avail: self._onUpdateCheckDone(avail, at_launch)
+            lambda avail, url: self._onUpdateCheckDone(avail, url, at_launch)
         )
         self._update_worker.done.connect(self._update_thread.quit)
         self._update_thread.finished.connect(self._update_thread.deleteLater)
         self._update_thread.finished.connect(self._update_worker.deleteLater)
         self._update_thread.start()
 
-    def _onUpdateCheckDone(self, update_available: bool, at_launch: bool):
+    def _onUpdateCheckDone(self, update_available: bool, appimage_url: str, at_launch: bool):
         self._update_available = update_available
+        self._latest_appimage_url = appimage_url
         if update_available:
-            self._askUpdate()
+            self._askUpdate(appimage_url)
         elif at_launch:
             self.statusbar_update.setText("Atualizado.")
         else:
@@ -1591,17 +1688,38 @@ class MainWindow(QMainWindow):
 
     _RELEASES_URL = "https://github.com/Borussia80/retromanager/releases/latest"
 
-    def _askUpdate(self):
-        ans = QMessageBox.question(
-            self, "Atualização disponível",
-            f"Uma atualização está disponível!\n\n"
+    def _askUpdate(self, appimage_url: str = ""):
+        is_appimage = bool(os.environ.get('APPIMAGE'))
+        info = (
             f"Atual: {self.updater.currentVersionString()}\n"
-            f"Mais recente: {self.updater.latestVersionString()}\n\n"
-            "Deseja abrir a página de downloads no navegador?"
+            f"Mais recente: {self.updater.latestVersionString()}"
         )
-        if ans == QMessageBox.StandardButton.Yes:
-            QDesktopServices.openUrl(QUrl(self._RELEASES_URL))
-            self._update_available = False
-            self.statusbar_update.setText("Abrindo página de downloads…")
+        if is_appimage and appimage_url:
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Atualização disponível")
+            msg.setText(f"Uma nova versão está disponível!\n\n{info}")
+            btn_install = msg.addButton("Baixar e instalar", QMessageBox.ButtonRole.AcceptRole)
+            btn_browser = msg.addButton("Ver no navegador", QMessageBox.ButtonRole.ActionRole)
+            msg.addButton("Agora não", QMessageBox.ButtonRole.RejectRole)
+            msg.exec()
+            clicked = msg.clickedButton()
+            if clicked == btn_install:
+                self._startAutoUpdate(appimage_url)
+            elif clicked == btn_browser:
+                QDesktopServices.openUrl(QUrl(self._RELEASES_URL))
+                self._update_available = False
+                self.statusbar_update.setText("Abrindo página de downloads…")
+            else:
+                self.statusbar_update.setText("Nova versão disponível! ↗")
         else:
-            self.statusbar_update.setText("Nova versão disponível! ↗")
+            ans = QMessageBox.question(
+                self, "Atualização disponível",
+                f"Uma nova versão está disponível!\n\n{info}\n\n"
+                "Deseja abrir a página de downloads no navegador?"
+            )
+            if ans == QMessageBox.StandardButton.Yes:
+                QDesktopServices.openUrl(QUrl(self._RELEASES_URL))
+                self._update_available = False
+                self.statusbar_update.setText("Abrindo página de downloads…")
+            else:
+                self.statusbar_update.setText("Nova versão disponível! ↗")

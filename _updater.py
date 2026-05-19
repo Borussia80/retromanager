@@ -14,8 +14,11 @@ _TRUSTED_API = "https://api.github.com/repos/Borussia80/retromanager/releases"
 _TAG_RE = re.compile(r'^v?(\d+)\.(\d+)(?:\.(\d+))?')
 
 
-def _fetch_latest_tag(timeout_ms: int = 5_000) -> str | None:
-    """Return the latest release tag string from GitHub, or None on failure."""
+def _fetch_latest_release(timeout_ms: int = 5_000) -> tuple[str, str] | None:
+    """Return (tag, appimage_url) for the latest release, or None on failure.
+
+    appimage_url may be empty if the release has no .AppImage asset.
+    """
     manager = QNetworkAccessManager()
     loop = QEventLoop()
 
@@ -37,12 +40,18 @@ def _fetch_latest_tag(timeout_ms: int = 5_000) -> str | None:
         if not isinstance(data, list) or not data:
             DebugHelper.print(DebugType.TYPE_WARNING, "Empty release list", "UPDATER")
             return None
-        tag = data[0].get("tag_name", "")
+        release = data[0]
+        tag = release.get("tag_name", "")
         if not isinstance(tag, str) or not _TAG_RE.match(tag):
             DebugHelper.print(DebugType.TYPE_WARNING,
                               f"Unexpected tag format: {tag!r}", "UPDATER")
             return None
-        return tag
+        appimage_url = ""
+        for asset in release.get("assets", []):
+            if asset.get("name", "").endswith(".AppImage"):
+                appimage_url = asset.get("browser_download_url", "")
+                break
+        return tag, appimage_url
     finally:
         reply.deleteLater()
 
@@ -51,14 +60,16 @@ class UpdaterHelper:
     LATEST_MAJOR    = VERSION_MAJOR
     LATEST_MINOR    = VERSION_MINOR
     LATEST_REVISION = VERSION_REVISION
+    _latest_appimage_url: str = ""
 
     def __init__(self) -> None:
         pass
 
     def _fetchLatestRelease(self) -> None:
-        tag = _fetch_latest_tag()
-        if tag is None:
+        result = _fetch_latest_release()
+        if result is None:
             return
+        tag, self._latest_appimage_url = result
         m = _TAG_RE.match(tag)
         if not m:
             return
@@ -78,6 +89,9 @@ class UpdaterHelper:
             return True
         DebugHelper.print(DebugType.TYPE_INFO, "You have the latest version.", "UPDATER")
         return False
+
+    def latestAppImageUrl(self) -> str:
+        return self._latest_appimage_url
 
     def currentVersionString(self) -> str:
         return f"v{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_REVISION}"
