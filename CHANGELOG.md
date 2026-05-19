@@ -5,6 +5,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [2.3.10] - 2026-05-19
+
+### Refatorado
+- `DownloadEngine` reescrito com `QThreadPool` + `QRunnable` em vez de `QThread` manual por ROM — elimina toda a classe de crashes `QThread: Destroyed while thread is still running` pela raiz. O pool gerencia o ciclo de vida dos threads automaticamente; não há mais dicts `_active_threads`/`_active_workers`, `_retry_schedule`, `_pending_retry_count` nem lógica de GC manual
+
+---
+
 ## [2.3.9] - 2026-05-18
 
 ### Corrigido

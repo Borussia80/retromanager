@@ -8,7 +8,7 @@ _BASE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 
 VERSION_MAJOR = 2
 VERSION_MINOR = 3
-VERSION_REVISION = 9
+VERSION_REVISION = 10
 
 RESOURCES_FILE = os.path.join(_BASE, "resources.rcc")
 ICONS_DIR  = os.path.join(_BASE, "resources", "icons")
