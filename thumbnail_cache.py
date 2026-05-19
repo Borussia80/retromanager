@@ -1,8 +1,9 @@
 import os
+import urllib.error
+import urllib.request
 from urllib.parse import quote
 
-from PyQt6.QtCore import QEventLoop, QObject, QRunnable, QUrl, pyqtSignal
-from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
+from PyQt6.QtCore import QObject, QRunnable, pyqtSignal
 
 from _thumbnail_evict import CACHE_DIR, evict_lru  # noqa: F401 (re-export)
 
@@ -90,25 +91,14 @@ class ThumbnailFetcher(QRunnable):
         if not url:
             return
 
-        manager = QNetworkAccessManager()
-        loop = QEventLoop()
-
-        request = QNetworkRequest(QUrl(url))
-        request.setTransferTimeout(8_000)
-
-        reply = manager.get(request)
-        reply.finished.connect(loop.quit)
-        loop.exec()
-
         try:
-            if reply.error() == QNetworkReply.NetworkError.NoError:
-                data = bytes(reply.readAll())
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, "wb") as f:
-                    f.write(data)
-                evict_lru()
-                self.signals.done.emit(self.platform, self.rom_name, path)
-            else:
-                self.signals.failed.emit(self.platform, self.rom_name)
-        finally:
-            reply.deleteLater()
+            req = urllib.request.Request(url, headers={"User-Agent": "retromanager"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = resp.read()
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as f:
+                f.write(data)
+            evict_lru()
+            self.signals.done.emit(self.platform, self.rom_name, path)
+        except (urllib.error.URLError, OSError):
+            self.signals.failed.emit(self.platform, self.rom_name)
