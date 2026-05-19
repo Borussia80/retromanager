@@ -42,6 +42,7 @@ class DownloadEngine(QObject):
         self._total = len(queue_items)
         self._completed_count = 0
         self._retry_counts: dict[str, int] = {}
+        self._retry_schedule: dict[str, tuple[str, int]] = {}  # rom_name → (platform, delay_ms)
         self._active_threads: dict[str, QThread] = {}
         self._active_workers: dict[str, DownloadWorker] = {}
         self._lock = threading.Lock()
@@ -123,7 +124,11 @@ class DownloadEngine(QObject):
             self._retry_counts[rom_name] = retries + 1
             _log.info("retry %d/%d for %s in %ds", retries + 1, self.MAX_RETRIES,
                       rom_name, self.RETRY_DELAYS[retries])
-            QTimer.singleShot(delay_ms, lambda p=platform, r=rom_name: self._retry(p, r))
+            # Store retry — timer is scheduled in _on_thread_done after the thread
+            # has fully stopped. Starting a new thread here would destroy the old one
+            # while still running, causing QThread: Destroyed crash.
+            with self._lock:
+                self._retry_schedule[rom_name] = (platform, delay_ms)
         else:
             self._retry_counts.pop(rom_name, None)
             self.failedItem.emit(platform, rom_name, error)
@@ -140,6 +145,13 @@ class DownloadEngine(QObject):
     def _on_thread_done(self, rom_name: str):
         with self._lock:
             self._active_threads.pop(rom_name, None)
+            retry = self._retry_schedule.pop(rom_name, None)
+
+        # Schedule retry only after the old thread is fully stopped.
+        if retry is not None:
+            platform, delay_ms = retry
+            QTimer.singleShot(delay_ms, lambda p=platform, r=rom_name: self._retry(p, r))
+            return
 
         if self._global_cancel.is_set():
             with self._lock:
