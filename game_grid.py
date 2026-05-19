@@ -1,6 +1,6 @@
 from PyQt6.QtCore import (
     Qt, QAbstractListModel, QModelIndex, QSize,
-    QRect, QSortFilterProxyModel, QThreadPool, pyqtSignal,
+    QRect, QRectF, QSortFilterProxyModel, QThreadPool, pyqtSignal,
 )
 from PyQt6.QtGui import (
     QColor, QPainter, QPixmap, QPixmapCache, QFont, QBrush, QPen, QPainterPath,
@@ -122,7 +122,7 @@ class _GameCardDelegate(QStyledItemDelegate):
 
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         path = QPainterPath()
-        path.addRoundedRect(r.adjusted(1, 1, -1, -1), 6, 6)
+        path.addRoundedRect(QRectF(r.adjusted(1, 1, -1, -1)), 6, 6)
         painter.fillPath(path, QBrush(bg))
         painter.setPen(QPen(border, 1))
         painter.drawPath(path)
