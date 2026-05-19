@@ -5,6 +5,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [2.3.7] - 2026-05-18
+
+### Corrigido
+- Crash `QThread: Destroyed while thread is still running` ao baixar ROMs com retry: o timer de retry era agendado antes do thread anterior terminar, sobrescrevendo `_active_threads` e deixando o GC destruir o thread em execução. O timer agora é agendado em `_on_thread_done`, após o thread estar completamente parado
+
+---
+
 ## [2.3.6] - 2026-05-18
 
 ### Corrigido
