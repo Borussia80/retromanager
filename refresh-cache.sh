@@ -18,8 +18,7 @@ if os.path.exists(PLATFORMS_CACHE_DB):
     os.replace(PLATFORMS_CACHE_DB, f"{PLATFORMS_CACHE_DB}.bak")
 
 app = QApplication([])
-splash = QSplashScreen()
-cache = CacheGenerator(app, splash)
+cache = CacheGenerator(app)
 cache.run()
 
 db = sqlite3.connect(PLATFORMS_CACHE_DB)
