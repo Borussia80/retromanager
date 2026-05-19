@@ -1573,7 +1573,7 @@ class MainWindow(QMainWindow):
             self, "Atualização disponível",
             f"Uma atualização está disponível!\n\n"
             f"Atual: {self.updater.currentVersionString()}\n"
-            f"Mais recente: {self.updater.lastestVersionString()}\n\n"
+            f"Mais recente: {self.updater.latestVersionString()}\n\n"
             "Deseja abrir a página de downloads no navegador?"
         )
         if ans == QMessageBox.StandardButton.Yes:

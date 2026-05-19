@@ -48,9 +48,9 @@ def _fetch_latest_tag(timeout_ms: int = 5_000) -> str | None:
 
 
 class UpdaterHelper:
-    LASTEST_MAJOR    = VERSION_MAJOR
-    LASTEST_MINOR    = VERSION_MINOR
-    LASTEST_REVISION = VERSION_REVISION
+    LATEST_MAJOR    = VERSION_MAJOR
+    LATEST_MINOR    = VERSION_MINOR
+    LATEST_REVISION = VERSION_REVISION
 
     def __init__(self) -> None:
         pass
@@ -63,16 +63,16 @@ class UpdaterHelper:
         if not m:
             return
         try:
-            self.LASTEST_MAJOR    = int(m.group(1))
-            self.LASTEST_MINOR    = int(m.group(2))
-            self.LASTEST_REVISION = int(m.group(3) or 0)
+            self.LATEST_MAJOR    = int(m.group(1))
+            self.LATEST_MINOR    = int(m.group(2))
+            self.LATEST_REVISION = int(m.group(3) or 0)
         except (ValueError, TypeError) as e:
             DebugHelper.print(DebugType.TYPE_ERROR, str(e), "UPDATER")
 
     def updateAvailable(self) -> bool:
         self._fetchLatestRelease()
         cur = (VERSION_MAJOR, VERSION_MINOR, VERSION_REVISION)
-        lat = (self.LASTEST_MAJOR, self.LASTEST_MINOR, self.LASTEST_REVISION)
+        lat = (self.LATEST_MAJOR, self.LATEST_MINOR, self.LATEST_REVISION)
         if lat > cur:
             DebugHelper.print(DebugType.TYPE_INFO, "Update available!", "UPDATER")
             return True
@@ -82,5 +82,5 @@ class UpdaterHelper:
     def currentVersionString(self) -> str:
         return f"v{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_REVISION}"
 
-    def lastestVersionString(self) -> str:
-        return f"v{self.LASTEST_MAJOR}.{self.LASTEST_MINOR}.{self.LASTEST_REVISION}"
+    def latestVersionString(self) -> str:
+        return f"v{self.LATEST_MAJOR}.{self.LATEST_MINOR}.{self.LATEST_REVISION}"

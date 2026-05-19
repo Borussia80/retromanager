@@ -70,8 +70,8 @@ class PlatformsHelper:
             _log.error("DB ilegível (%s) — recriando", exc)
             try:
                 self._db.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                _log.warning("Erro ao fechar DB corrompido: %s", exc)
             Path(PLATFORMS_CACHE_DB).unlink(missing_ok=True)
             self._db = sqlite3.connect(PLATFORMS_CACHE_DB, check_same_thread=False)
             self._db.executescript(_SCHEMA)
@@ -231,8 +231,8 @@ class PlatformsHelper:
                         (fts_query, platform_name, limit)
                     ).fetchall()
                     return [r[0] for r in rows]
-                except sqlite3.OperationalError:
-                    pass
+                except sqlite3.OperationalError as exc:
+                    _log.debug("FTS indisponível, usando fallback Python: %s", exc)
 
         # Python-side fallback
         with self._lock:

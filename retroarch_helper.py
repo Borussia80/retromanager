@@ -138,8 +138,8 @@ class RetroArchHelper(EmulatorPlugin):
                 with open(lpl) as f:
                     data = json.load(f)
                 total += len(data.get("items", []))
-            except Exception:
-                pass
+            except Exception as exc:
+                _log.warning("Playlist inválida ignorada (%s): %s", lpl.name, exc)
         return total
 
     def launch(self, platform: str, rom_path: str) -> bool:

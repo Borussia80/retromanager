@@ -13,7 +13,7 @@ class SettingsHelper():
     self.full_path = SETTINGS_FILE
     self._settings = {
       "cache_expiration": 30,
-      "check_updates": False,
+      "check_updates": True,
       "download_path": DEFAULT_DOWNLOAD_DIR,
       "import_paths": [],
       "organize_by_platform": True,
