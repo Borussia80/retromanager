@@ -25,10 +25,10 @@ class _DownloadTask(QRunnable):
     """Single-ROM download unit. QThreadPool manages the thread lifecycle."""
 
     class _Signals(QObject):
-        started   = pyqtSignal(str, str, int, int)   # platform, rom_name, slot, total
-        progress  = pyqtSignal(int, int, float)       # bytes_done, total_bytes, speed
-        completed = pyqtSignal(str, str)               # platform, rom_name
-        failed    = pyqtSignal(str, str, str)          # platform, rom_name, error
+        started   = pyqtSignal(str, str, int, int)        # platform, rom_name, slot, total
+        progress  = pyqtSignal(str, int, int, float)      # rom_name, bytes_done, total_bytes, speed
+        completed = pyqtSignal(str, str)                   # platform, rom_name
+        failed    = pyqtSignal(str, str, str)              # platform, rom_name, error
 
     def __init__(self, settings: SettingsHelper, platforms: PlatformsHelper,
                  platform: str, rom_name: str, slot: int, total: int,
@@ -50,7 +50,7 @@ class _DownloadTask(QRunnable):
         self.signals.started.emit(self._platform, self._rom_name, self._slot, self._total)
         try:
             worker = DownloadWorker(self._settings, self._platforms, [], self._cancel)
-            worker.progress.connect(self.signals.progress)
+            worker.progress.connect(lambda bd, tb, sp, rn=self._rom_name: self.signals.progress.emit(rn, bd, tb, sp))
             path = worker._download(self._platform, self._rom_name)
             if self._settings.get('unzip'):
                 worker._unzip(path)
@@ -71,7 +71,7 @@ class DownloadEngine(QObject):
 
     # Same signal surface as old DownloadWorker for drop-in compatibility.
     startedItem   = pyqtSignal(str, str, int, int)
-    progress      = pyqtSignal(int, int, float)
+    progress      = pyqtSignal(str, int, int, float)   # rom_name, bytes_done, total_bytes, speed
     completedItem = pyqtSignal(str, str)
     failedItem    = pyqtSignal(str, str, str)
     cancelled     = pyqtSignal()

@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [2.3.11] - 2026-05-19
+
+### Corrigido
+- `DownloadEngine`: sinal `progress` agora carrega `rom_name` como primeiro argumento — elimina o padrão `_active_rom_name` em `mainwindow.py` que, com downloads concorrentes, atualiza o painel sempre com o último ROM iniciado em vez do que realmente está progredindo
+- `_platforms.py`: tokens FTS5 agora têm `"` escapado como `""` antes de entrar na query `MATCH`; previne `OperationalError` em buscas com aspas ou caracteres especiais
+- `download_queue.py`: `_onpbDeleteClicked` não lança `IndexError` quando a seleção é removida entre o clique e o handler — guarda adicionada
+
+---
+
 ## [2.3.10] - 2026-05-19
 
 ### Refatorado

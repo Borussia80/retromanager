@@ -218,7 +218,10 @@ class PlatformsHelper:
 
         if self._fts_available:
             tokens = query.lower().split()
-            fts_query = " OR ".join(f'"{t}"*' for t in tokens)
+            # Escape FTS5 special chars inside quoted phrases so user input
+            # like "mario (usa)" or 'zelda"s' doesn't produce syntax errors.
+            safe_tokens = [t.replace('"', '""') for t in tokens]
+            fts_query = " OR ".join(f'"{t}"*' for t in safe_tokens)
             with self._lock:
                 try:
                     # Query roms_fts directly (no JOIN) — the platform column is in the

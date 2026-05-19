@@ -113,7 +113,10 @@ class DownloadQueue(QDialog, Ui_DownloadQueue):
 
 
   def _onpbDeleteClicked(self, checked: bool):
-    item: CustomListItemWidget = self.lwToDownload.selectedItems()[0]
+    selected = self.lwToDownload.selectedItems()
+    if not selected:
+        return
+    item: CustomListItemWidget = selected[0]
     self.remove(item.rom_platform, item.rom_name)
 
 

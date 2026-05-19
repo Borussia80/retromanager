@@ -1472,9 +1472,8 @@ class MainWindow(QMainWindow):
             f"Baixando {current}/{total}: [{platform}] {rom_name}"
         )
 
-    def _onDownloadProgress(self, bytes_done: int, total_bytes: int, speed: float):
-        if self._active_rom_name:
-            self.download_panel.update_progress(self._active_rom_name, bytes_done, total_bytes, speed)
+    def _onDownloadProgress(self, rom_name: str, bytes_done: int, total_bytes: int, speed: float):
+        self.download_panel.update_progress(rom_name, bytes_done, total_bytes, speed)
 
     def _onDownloadCompletedItem(self, platform: str, rom_name: str):
         self.download_completed_count += 1
