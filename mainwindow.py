@@ -1178,6 +1178,20 @@ class MainWindow(QMainWindow):
                 "Verifique a pasta de downloads nas configurações."
             )
             return
+        core_path = self._retroarch.core_path(platform)
+        if not core_path:
+            core_name = self._retroarch.core_name(platform)
+            ans = QMessageBox.warning(
+                self, "Core não encontrada",
+                f"A core necessária para {platform} não foi encontrada:\n"
+                f"  {core_name}\n\n"
+                "Abra o RetroArch → Online Updater → Core Downloader e instale a core.\n\n"
+                "Deseja abrir o RetroArch assim mesmo (sem core)?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if ans != QMessageBox.StandardButton.Yes:
+                return
         if not self._retroarch.launch(platform, rom_path):
             QMessageBox.warning(self, "RetroArch", "Não foi possível iniciar o RetroArch.")
         else:
