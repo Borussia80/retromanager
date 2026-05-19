@@ -5,6 +5,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [2.3.6] - 2026-05-18
+
+### Corrigido
+- Crash ao clicar em Baixar: `QPainterPath.addRoundedRect` exige `QRectF`; `QRect.adjusted()` retornava `QRect`, causando `TypeError` ao repintar qualquer card da grade
+
+---
+
 ## [2.3.5] - 2026-05-18
 
 ### Corrigido
