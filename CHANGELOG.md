@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [2.3.5] - 2026-05-18
+
+### Corrigido
+- RetroArch: exibe aviso com nome da core e instruções de instalação quando a core não está presente, em vez de lançar sem `-L` silenciosamente
+- `refresh-cache.sh`: corrige TypeError por argumento extra passado ao `CacheGenerator`
+- Plataformas Sony PlayStation, PlayStation 2 e PSP agora aparecem após atualizar o catálogo
+
+---
+
 ## [2.3.4] - 2026-05-18
 
 ### Corrigido
