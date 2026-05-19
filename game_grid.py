@@ -226,10 +226,12 @@ class GameGridWidget(QListView):
         self.doubleClicked.connect(self._on_double_clicked)
         self._pool = QThreadPool.globalInstance()
         self._pool.setMaxThreadCount(4)
+        self._active_fetchers: set = set()  # keeps Python refs alive until pool finishes
 
     # ── Public API (same surface as old GameGridWidget) ────────────────────────
 
     def load(self, platform: str, rom_names: list[str], downloaded_set: set | None = None):
+        self._active_fetchers.clear()
         self._source.load(platform, rom_names, downloaded_set or set())
 
         # Pre-load cached thumbnails, enqueue fetches for the rest
@@ -241,6 +243,9 @@ class GameGridWidget(QListView):
             elif get_thumbnail_url(platform, name) is not None:
                 fetcher = ThumbnailFetcher(platform, name)
                 fetcher.signals.done.connect(self._on_thumbnail_done)
+                fetcher.signals.done.connect(lambda *_, f=fetcher: self._active_fetchers.discard(f))
+                fetcher.signals.failed.connect(lambda *_, f=fetcher: self._active_fetchers.discard(f))
+                self._active_fetchers.add(fetcher)
                 self._pool.start(fetcher)
 
     def apply_filter(self, keywords: list[str], region: str | None):

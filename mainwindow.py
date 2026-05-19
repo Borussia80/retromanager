@@ -1370,7 +1370,11 @@ class MainWindow(QMainWindow):
         if not self.lw_platforms.selectedItems():
             return
         platform = self.lw_platforms.selectedItems()[0].data(Qt.ItemDataRole.UserRole)
-        selected_names = []
+        is_pseudo = platform in _PSEUDO_KEYS
+
+        # Group rom names by their real platform (each row stores it in UserRole when
+        # in pseudo-views; use the sidebar platform as-is for real platform views).
+        pending: dict[str, list[str]] = {}
         already_downloaded = 0
         for idx in self.tw_romsList.selectedIndexes():
             if idx.column() != 0 or self.tw_romsList.isRowHidden(idx.row()):
@@ -1379,8 +1383,14 @@ class MainWindow(QMainWindow):
             if it and it.data(Qt.ItemDataRole.UserRole + 1):
                 already_downloaded += 1
                 continue
-            selected_names.append(self._row_shortname(idx.row()))
-        added = self.download_queue.add(platform, selected_names)
+            real_platform = (it.data(Qt.ItemDataRole.UserRole) if is_pseudo else platform) if it else platform
+            if real_platform and real_platform not in _PSEUDO_KEYS:
+                pending.setdefault(real_platform, []).append(self._row_shortname(idx.row()))
+
+        added = 0
+        for plat, names in pending.items():
+            added += self.download_queue.add(plat, names)
+
         self._updateStatusbarQueueText()
         if already_downloaded and added:
             self.statusBar().showMessage(

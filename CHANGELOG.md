@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [2.3.8] - 2026-05-18
+
+### Corrigido
+- `_addToQueue`: nas views pseudo-plataforma (Favoritos, Recentes, Baixados), a plataforma real é lida do campo `UserRole` de cada linha em vez do item selecionado na barra lateral; evita erro "ROM não encontrada no catálogo" ao tentar baixar via essas views
+- `ThumbnailFetcher`: mantém referência Python ao objeto até a conclusão do pool para evitar GC prematuro que destruía `fetcher.signals` e cortava as conexões de sinal — corrige thumbnails não aparecendo na grade
+
+---
+
 ## [2.3.7] - 2026-05-18
 
 ### Corrigido
