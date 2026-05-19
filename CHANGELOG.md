@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [2.3.9] - 2026-05-18
+
+### Corrigido
+- `DownloadEngine`: corrige `QThread: Destroyed while thread is still running` ao baixar — quando todos os downloads completavam antes de um timer de retry disparar, o engine emitia `finished` e era destruído; ao disparar, o retry criava um thread órfão que era coletado pelo GC enquanto ainda rodava. Solução: `_pending_retry_count` impede a emissão de `finished` enquanto há timers de retry pendentes
+- `DownloadEngine`: referências Python a `DownloadWorker` agora são mantidas até o thread filho terminar completamente (movido `_active_workers.pop` para `_on_thread_done`), evitando que o GC destrua o worker enquanto o thread ainda está em execução
+
+---
+
 ## [2.3.8] - 2026-05-18
 
 ### Corrigido

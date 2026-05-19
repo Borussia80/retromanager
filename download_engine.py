@@ -48,6 +48,7 @@ class DownloadEngine(QObject):
         self._lock = threading.Lock()
         self._global_cancel = threading.Event()
         self._all_done = False
+        self._pending_retry_count = 0  # retry timers scheduled but not yet fired
 
     def cancel(self):
         self._global_cancel.set()
@@ -110,14 +111,10 @@ class DownloadEngine(QObject):
     def _on_worker_completed(self, platform: str, rom_name: str):
         self._completed_count += 1
         self._retry_counts.pop(rom_name, None)
-        with self._lock:
-            self._active_workers.pop(rom_name, None)
         self.completedItem.emit(platform, rom_name)
 
     def _on_worker_failed(self, platform: str, rom_name: str, error: str):
         retries = self._retry_counts.get(rom_name, 0)
-        with self._lock:
-            self._active_workers.pop(rom_name, None)
 
         if not self._global_cancel.is_set() and retries < self.MAX_RETRIES:
             delay_ms = self.RETRY_DELAYS[retries] * 1000
@@ -134,8 +131,10 @@ class DownloadEngine(QObject):
             self.failedItem.emit(platform, rom_name, error)
 
     def _retry(self, platform: str, rom_name: str):
+        self._pending_retry_count -= 1
+        if self._all_done or self._global_cancel.is_set():
+            return
         with self._lock:
-            # Put the item back at the front of the pending queue
             self._pending.insert(0, (platform, rom_name))
         self._start_next_batch()
 
@@ -145,11 +144,13 @@ class DownloadEngine(QObject):
     def _on_thread_done(self, rom_name: str):
         with self._lock:
             self._active_threads.pop(rom_name, None)
+            self._active_workers.pop(rom_name, None)
             retry = self._retry_schedule.pop(rom_name, None)
 
         # Schedule retry only after the old thread is fully stopped.
         if retry is not None:
             platform, delay_ms = retry
+            self._pending_retry_count += 1
             QTimer.singleShot(delay_ms, lambda p=platform, r=rom_name: self._retry(p, r))
             return
 
@@ -167,6 +168,6 @@ class DownloadEngine(QObject):
 
         if has_pending:
             self._start_next_batch()
-        elif active == 0 and not self._all_done:
+        elif active == 0 and self._pending_retry_count == 0 and not self._all_done:
             self._all_done = True
             self.finished.emit()
