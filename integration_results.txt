@@ -1,0 +1,38 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- /usr/bin/python
+cachedir: .pytest_cache
+rootdir: /home/rmilet/Base/01-Projetos/12-RetroManager/retromanager
+configfile: pyproject.toml
+plugins: mock-3.15.1, anyio-4.13.0
+collecting ... collected 22 items
+
+tests/test_integration_emulators.py::TestRetroArchHelperDetection::test_retroarch_detected_or_missing PASSED [  4%]
+tests/test_integration_emulators.py::TestRetroArchHelperDetection::test_retroarch_properties_types PASSED [  9%]
+tests/test_integration_emulators.py::TestRetroArchHelperDetection::test_retroarch_config_dir_found PASSED [ 13%]
+tests/test_integration_emulators.py::TestRetroArchHelperDetection::test_retroarch_cores_detection SKIPPED [ 18%]
+tests/test_integration_emulators.py::TestRetroArchHelperDetection::test_retroarch_core_path_valid_platforms SKIPPED [ 22%]
+tests/test_integration_emulators.py::TestRetroArchHelperDetection::test_retroarch_core_name_mapping PASSED [ 27%]
+tests/test_integration_emulators.py::TestRetroArchPlaylist::test_total_playlist_items SKIPPED [ 31%]
+tests/test_integration_emulators.py::TestRetroArchPlaylist::test_add_to_playlist_creates_entry SKIPPED [ 36%]
+tests/test_integration_emulators.py::TestRetroArchPlaylist::test_add_to_playlist_idempotent SKIPPED [ 40%]
+tests/test_integration_emulators.py::TestRetroArchLaunch::test_launch_without_exe_returns_false SKIPPED [ 45%]
+tests/test_integration_emulators.py::TestRetroArchLaunch::test_launch_with_dummy_rom SKIPPED [ 50%]
+tests/test_integration_emulators.py::TestRetroArchLaunch::test_launch_with_invalid_platform PASSED [ 54%]
+tests/test_integration_emulators.py::TestLutrisHelperDetection::test_lutris_detected_or_missing PASSED [ 59%]
+tests/test_integration_emulators.py::TestLutrisHelperDetection::test_lutris_exe_property PASSED [ 63%]
+tests/test_integration_emulators.py::TestLutrisHelperDetection::test_lutris_detected_when_installed PASSED [ 68%]
+tests/test_integration_emulators.py::TestLutrisHelperDetection::test_lutris_game_count PASSED [ 72%]
+tests/test_integration_emulators.py::TestLutrisHelperDetection::test_lutris_game_count_when_installed PASSED [ 77%]
+tests/test_integration_emulators.py::TestLutrisUtilities::test_clean_name PASSED [ 81%]
+tests/test_integration_emulators.py::TestLutrisUtilities::test_slug_generation PASSED [ 86%]
+tests/test_integration_emulators.py::TestIntegrationEmulatorChain::test_both_helpers_initialize PASSED [ 90%]
+tests/test_integration_emulators.py::TestIntegrationEmulatorChain::test_detection_consistency PASSED [ 95%]
+tests/test_integration_emulators.py::TestIntegrationEmulatorChain::test_retroarch_workflow_detection_to_playlist SKIPPED [100%]
+
+=============================== warnings summary ===============================
+tests/test_integration_emulators.py:271
+  /home/rmilet/Base/01-Projetos/12-RetroManager/retromanager/tests/test_integration_emulators.py:271: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=================== 14 passed, 8 skipped, 1 warning in 0.06s ===================

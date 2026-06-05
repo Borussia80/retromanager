@@ -1,0 +1,26 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- /usr/bin/python
+cachedir: .pytest_cache
+rootdir: /home/rmilet/Base/01-Projetos/12-RetroManager/retromanager
+configfile: pyproject.toml
+plugins: mock-3.15.1, anyio-4.13.0
+collecting ... collected 9 items
+
+tests/test_e2e_launch_emulators.py::TestRetroArchLaunchE2E::test_retroarch_launches_nes_rom PASSED
+tests/test_e2e_launch_emulators.py::TestRetroArchLaunchE2E::test_retroarch_launches_snes_rom PASSED
+tests/test_e2e_launch_emulators.py::TestRetroArchLaunchE2E::test_retroarch_with_core_and_rom PASSED
+tests/test_e2e_launch_emulators.py::TestRetroArchLaunchE2E::test_retroarch_launch_nonexistent_rom_fails FAILED
+tests/test_e2e_launch_emulators.py::TestLutrisLaunchE2E::test_lutris_detected_and_ready PASSED
+tests/test_e2e_launch_emulators.py::TestLutrisLaunchE2E::test_lutris_database_accessible PASSED
+tests/test_e2e_launch_emulators.py::TestIntegrationFlowE2E::test_full_retromanager_to_retroarch_flow PASSED
+tests/test_e2e_launch_emulators.py::TestIntegrationFlowE2E::test_playlist_add_and_verify PASSED
+tests/test_e2e_launch_emulators.py::TestProcessVerification::test_retroarch_process_created PASSED
+
+=================================== FAILURES ===================================
+______ TestRetroArchLaunchE2E.test_retroarch_launch_nonexistent_rom_fails ______
+tests/test_e2e_launch_emulators.py:134: in test_retroarch_launch_nonexistent_rom_fails
+    assert result is False
+E   assert True is False
+=========================== short test summary info ============================
+FAILED tests/test_e2e_launch_emulators.py::TestRetroArchLaunchE2E::test_retroarch_launch_nonexistent_rom_fails - assert True is False
+========================= 1 failed, 8 passed in 2.61s ==========================
