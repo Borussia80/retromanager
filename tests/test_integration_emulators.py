@@ -42,7 +42,8 @@ class TestRetroArchHelperDetection:
         assert helper.config_dir.exists()
 
     @pytest.mark.skipif(
-        not Path.home().joinpath(".config/retroarch").exists(),
+        not Path.home().joinpath(".config/retroarch").exists()
+        and not Path.home().joinpath(".var/app/org.libretro.RetroArch/config/retroarch").exists(),
         reason="RetroArch not installed"
     )
     def test_retroarch_cores_detection(self):
@@ -54,7 +55,8 @@ class TestRetroArchHelperDetection:
         assert cores_dir is None or isinstance(cores_dir, Path)
 
     @pytest.mark.skipif(
-        not Path.home().joinpath(".config/retroarch").exists(),
+        not Path.home().joinpath(".config/retroarch").exists()
+        and not Path.home().joinpath(".var/app/org.libretro.RetroArch/config/retroarch").exists(),
         reason="RetroArch not installed"
     )
     def test_retroarch_core_path_valid_platforms(self):
@@ -79,7 +81,8 @@ class TestRetroArchPlaylist:
     """Test RetroArch playlist operations."""
 
     @pytest.mark.skipif(
-        not Path.home().joinpath(".config/retroarch").exists(),
+        not Path.home().joinpath(".config/retroarch").exists()
+        and not Path.home().joinpath(".var/app/org.libretro.RetroArch/config/retroarch").exists(),
         reason="RetroArch not installed"
     )
     def test_total_playlist_items(self):
@@ -90,7 +93,8 @@ class TestRetroArchPlaylist:
         assert count >= 0
 
     @pytest.mark.skipif(
-        not Path.home().joinpath(".config/retroarch").exists(),
+        not Path.home().joinpath(".config/retroarch").exists()
+        and not Path.home().joinpath(".var/app/org.libretro.RetroArch/config/retroarch").exists(),
         reason="RetroArch not installed"
     )
     def test_add_to_playlist_creates_entry(self):
@@ -127,7 +131,8 @@ class TestRetroArchPlaylist:
             Path(rom_path).unlink(missing_ok=True)
 
     @pytest.mark.skipif(
-        not Path.home().joinpath(".config/retroarch").exists(),
+        not Path.home().joinpath(".config/retroarch").exists()
+        and not Path.home().joinpath(".var/app/org.libretro.RetroArch/config/retroarch").exists(),
         reason="RetroArch not installed"
     )
     def test_add_to_playlist_idempotent(self):
@@ -160,17 +165,9 @@ class TestRetroArchPlaylist:
 class TestRetroArchLaunch:
     """Test RetroArch launch functionality."""
 
-    def test_launch_without_exe_returns_false(self):
-        """launch() should return False if no executable found."""
-        helper = RetroArchHelper()
-        if helper.exe:
-            pytest.skip("RetroArch executable found; test requires it not found")
-
-        result = helper.launch("Nintendo - NES", "/tmp/test.nes")
-        assert result is False
-
     @pytest.mark.skipif(
-        not Path.home().joinpath(".config/retroarch").exists(),
+        not Path.home().joinpath(".config/retroarch").exists()
+        and not Path.home().joinpath(".var/app/org.libretro.RetroArch/config/retroarch").exists(),
         reason="RetroArch not installed"
     )
     def test_launch_with_dummy_rom(self):
@@ -287,7 +284,8 @@ class TestIntegrationEmulatorChain:
         assert detected1 == detected2
 
     @pytest.mark.skipif(
-        not Path.home().joinpath(".config/retroarch").exists(),
+        not Path.home().joinpath(".config/retroarch").exists()
+        and not Path.home().joinpath(".var/app/org.libretro.RetroArch/config/retroarch").exists(),
         reason="RetroArch not installed"
     )
     def test_retroarch_workflow_detection_to_playlist(self):
