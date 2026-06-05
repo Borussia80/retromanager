@@ -66,7 +66,12 @@ for platform, count in PLATFORM_SIZES.items():
         for i in range(count)
     ]
     platforms_helper._db.executemany(
-        "INSERT OR IGNORE INTO roms VALUES (?,?,?,?,?,?,?,?,?)", rows
+        """
+        INSERT OR IGNORE INTO roms
+        (platform, name, source_id, file_path, size, md5, crc32, sha1, format)
+        VALUES (?,?,?,?,?,?,?,?,?)
+        """,
+        rows,
     )
 platforms_helper._db.commit()
 platforms_helper._fts_available = platforms_helper._setup_fts()

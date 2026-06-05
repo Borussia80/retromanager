@@ -20,7 +20,6 @@ from _settings import SettingsHelper
 from _updater import UpdaterHelper
 from _platforms import PlatformsHelper
 from _tools import Tools, DownloadWorker, HashCheckWorker
-from download_engine import DownloadEngine
 from notifications import Notifier
 from _debug import DebugHelper, DebugType
 
@@ -28,15 +27,15 @@ _FAVORITES_KEY  = "_FAVORITES_"
 _HISTORY_KEY    = "_HISTORY_"
 _DOWNLOADED_KEY = "_DOWNLOADED_"
 _PSEUDO_KEYS    = (_FAVORITES_KEY, _HISTORY_KEY, _DOWNLOADED_KEY)
-from download_queue import DownloadQueue
 from download_panel import DownloadQueuePanel
+from download_controller import DownloadController
 from platform_icons import (
     PlatformItemWidget, FavoritesItemWidget, HistoryItemWidget, DownloadedItemWidget,
     GameTitleDelegate, FormatBadgeDelegate, fmt_count,
 )
 from favorites_manager import FavoritesManager
 from history_manager import HistoryManager
-from error_dialog import DownloadErrorDialog, HashResultDialog
+from error_dialog import HashResultDialog
 from game_grid import GameGridWidget
 from options import Options
 from about import About
@@ -67,13 +66,6 @@ class MainWindow(QMainWindow):
         self._notifier = Notifier(self)
         self.optionsDialog = Options(self, settings, self._retroarch, self._lutris)
         self.aboutDialog = About(self)
-        self.download_queue = DownloadQueue(self)
-        self.download_thread = None
-        self.download_worker = None
-        self.download_total_count = 0
-        self.download_completed_count = 0
-        self.download_failed = False
-        self._active_rom_name = None
         self.table_placeholder_active = False
         self._current_platform_roms: list = []
         self._current_platform_downloaded: set = set()
@@ -90,6 +82,10 @@ class MainWindow(QMainWindow):
         self.filter_timer.timeout.connect(self._applyTableFilter)
 
         self._build_ui()
+        self.downloads = DownloadController(
+            self, self.settings, self.platforms, self._notifier, self.download_panel
+        )
+        self.download_queue = self.downloads.queue
         self._build_menu()
         self._build_statusbar()
         self._connect_signals()
@@ -852,9 +848,7 @@ class MainWindow(QMainWindow):
         self._statusbar_integrations.setVisible(bool(parts))
 
     def _restoreQueueToPanel(self):
-        for _, rom_name in self.download_queue.items():
-            self.download_panel.add_item(rom_name)
-        self._updateStatusbarQueueText()
+        self.downloads.restore_queue_to_panel()
 
     def _showEmptyState(self, icon: str, title: str, description: str,
                         action_label: str = None, action_callback=None):
@@ -1025,11 +1019,7 @@ class MainWindow(QMainWindow):
         self._detail_panel.show_rom(platform, rom_name, display_name, rom_data, is_fav, is_downloaded)
 
     def _onDetailDownload(self, platform: str, rom_name: str):
-        added = self.download_queue.add(platform, [rom_name])
-        if added:
-            self.download_panel.add_item(rom_name)
-        self._updateStatusbarQueueText()
-        self._launchRomsDownload()
+        self.downloads.handle_detail_download(platform, rom_name)
 
     def _onDetailFavoriteToggled(self, platform: str, rom_name: str):
         now_fav = self._favorites.toggle(platform, rom_name)
@@ -1306,7 +1296,7 @@ class MainWindow(QMainWindow):
         if redownload and not all_ok and platform and rom_name:
             self.download_queue.add(platform, [rom_name])
             self._updateStatusbarQueueText()
-            self._launchRomsDownload()
+            self._launchRomsDownload(notify_if_running=False)
 
     # ──────────────────────────────────────────────
     # Import library
@@ -1368,9 +1358,7 @@ class MainWindow(QMainWindow):
         if not self.lw_platforms.selectedItems():
             return
         platform = self.lw_platforms.selectedItems()[0].data(Qt.ItemDataRole.UserRole)
-        self.download_queue.add(platform, [rom_name])
-        self._updateStatusbarQueueText()
-        self._launchRomsDownload()
+        self.downloads.handle_download_by_name(platform, rom_name)
 
     def _addToQueue(self):
         if not self.lw_platforms.selectedItems():
@@ -1418,113 +1406,32 @@ class MainWindow(QMainWindow):
         self._launchRomsDownload()
 
     def _updateStatusbarQueueText(self):
-        count = self.download_queue.getTotalCount()
-        is_running = bool(self.download_thread and self.download_thread.isRunning())
-        if count > 0:
-            self.statusbar_queue.setText(f"<a href='#'>{fmt_count(count)} na fila</a>")
-        else:
-            self.statusbar_queue.setText("")
-        self.download_panel.set_downloading(is_running)
-        if not is_running:
-            self.download_panel._btn_start.setEnabled(count > 0)
-        self._update_queue_tab_label()
+        self.downloads.update_status_text()
 
     # ──────────────────────────────────────────────
     # Download
     # ──────────────────────────────────────────────
 
-    def _launchRomsDownload(self):
-        if self.download_thread and self.download_thread.isRunning():
-            QMessageBox.information(self, "Download em andamento", "Um download já está em andamento.")
-            return
-        if self.download_queue.getTotalCount() == 0:
-            QMessageBox.information(self, "Fila de download", "Nenhum item na fila de download.")
-            return
-
-        items = self.download_queue.items()
-        self.download_total_count = len(items)
-        self.download_completed_count = 0
-        self.download_failed = False
-        self._download_paused = False
-        self._active_rom_name = None
-
-        # Pre-populate panel with all queued items
-        self.download_panel.clear()
-        for _, rom_name in items:
-            self.download_panel.add_item(rom_name)
-        self.download_panel.set_downloading(True)
-        self.download_panel._btn_start.setEnabled(False)
-
-        self.download_thread = QThread(self)
-        self.download_worker = DownloadEngine(self.settings, self.platforms, items)
-        self.download_worker.moveToThread(self.download_thread)
-        self.download_thread.started.connect(self.download_worker.run)
-        self.download_worker.startedItem.connect(self._onDownloadStartedItem)
-        self.download_worker.progress.connect(self._onDownloadProgress)
-        self.download_worker.completedItem.connect(self._onDownloadCompletedItem)
-        self.download_worker.failedItem.connect(self._onDownloadFailedItem)
-        self.download_worker.cancelled.connect(self._onDownloadCancelled)
-        self.download_worker.finished.connect(self.download_thread.quit)
-        self.download_worker.finished.connect(self.download_worker.deleteLater)
-        self.download_thread.finished.connect(self._onDownloadThreadFinished)
-        self.download_thread.finished.connect(self.download_thread.deleteLater)
-        self.download_thread.start()
-        self._tab_queue.setChecked(True)   # auto-switch to queue on download start
+    def _launchRomsDownload(self, notify_if_running: bool = True):
+        self.downloads.launch_downloads(notify_if_running=notify_if_running)
 
     def _onDownloadStartedItem(self, platform: str, rom_name: str, current: int, total: int):
-        self._active_rom_name = rom_name
-        self.download_panel.start_item(rom_name)
-        self.statusBar().showMessage(
-            f"Baixando {current}/{total}: [{platform}] {rom_name}"
-        )
+        self.downloads._on_started_item(platform, rom_name, current, total)
 
     def _onDownloadProgress(self, rom_name: str, bytes_done: int, total_bytes: int, speed: float):
-        self.download_panel.update_progress(rom_name, bytes_done, total_bytes, speed)
+        self.downloads._on_progress(rom_name, bytes_done, total_bytes, speed)
 
     def _onDownloadCompletedItem(self, platform: str, rom_name: str):
-        self.download_completed_count += 1
-        self.download_queue.remove(platform, rom_name)
-        self.download_panel.complete_item(rom_name)
-        self._updateStatusbarQueueText()
-        self._notifier.send("Download concluído", f"{rom_name} está pronto para jogar.")
-        # Update ✓ badge in the table and detail panel immediately
-        for i in range(self.tw_romsList.rowCount()):
-            it = self.tw_romsList.item(i, 0)
-            shortname = (it.data(Qt.ItemDataRole.UserRole + 3) or it.text()) if it else None
-            if it and shortname == rom_name:
-                it.setData(Qt.ItemDataRole.UserRole + 1, True)
-                self.tw_romsList.viewport().update()
-                break
-        if self._detail_panel._rom_name == rom_name:
-            self._detail_panel.sync_downloaded(True)
+        self.downloads._on_completed_item(platform, rom_name)
 
     def _onDownloadFailedItem(self, platform: str, rom_name: str, error: str):
-        self.download_failed = True
-        self.download_panel.fail_item(rom_name, error)
-        DebugHelper.print(DebugType.TYPE_ERROR, f"Download failed [{platform}] {rom_name}: {error}", "downloader")
-        dlg = DownloadErrorDialog(rom_name, platform, error, parent=self)
-        if dlg.exec() == DownloadErrorDialog.DialogCode.Accepted:
-            QTimer.singleShot(0, self._launchRomsDownload)
+        self.downloads._on_failed_item(platform, rom_name, error)
 
     def _onDownloadCancelled(self):
-        self._download_paused = True
-        if self._active_rom_name:
-            self.download_panel.cancel_item(self._active_rom_name)
+        self.downloads._on_cancelled()
 
     def _onDownloadThreadFinished(self):
-        was_paused = self._download_paused
-        self.download_thread = None
-        self.download_worker = None
-        self._active_rom_name = None
-        self._download_paused = False
-        self._updateStatusbarQueueText()
-        self._tab_detail.setChecked(True)   # auto-switch back to details when done
-        if was_paused:
-            self.statusBar().showMessage("Download pausado. Clique ▶ para continuar.", 5000)
-        elif not self.download_failed:
-            self.statusBar().showMessage(
-                f"{fmt_count(self.download_completed_count)} baixados.", 5000
-            )
+        self.downloads._on_thread_finished()
 
     def _startAutoUpdate(self, url: str):
         appimage_path = os.environ.get('APPIMAGE', '')
@@ -1615,12 +1522,10 @@ class MainWindow(QMainWindow):
             os.execv(appimage_path, [appimage_path] + sys.argv[1:])
 
     def _cancelDownload(self):
-        if self.download_worker:
-            self.download_worker.cancel()
+        self.downloads.cancel()
 
     def _retryDownload(self, rom_name: str):
-        if not (self.download_thread and self.download_thread.isRunning()):
-            self._launchRomsDownload()
+        self.downloads.retry(rom_name)
 
     def closeEvent(self, event):
         try:
@@ -1628,11 +1533,7 @@ class MainWindow(QMainWindow):
             self._detail_panel.favoriteToggled.disconnect()
         except (RuntimeError, TypeError):
             pass
-        if self.download_thread and self.download_thread.isRunning():
-            self._cancelDownload()
-            self.download_thread.quit()
-            if not self.download_thread.wait(5000):
-                self.download_thread.terminate()
+        self.downloads.shutdown()
         for attr in ('_mame_thread', '_update_thread'):
             try:
                 t = getattr(self, attr, None)

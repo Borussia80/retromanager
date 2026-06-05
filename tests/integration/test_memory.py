@@ -53,7 +53,14 @@ def mock_platforms(tmp_path):
     # Seed with two platforms
     rows = [(f"Nintendo - NES", f"ROM {i}", "", "", 1024, "", "", "", "zip") for i in range(50)]
     rows += [(f"Nintendo - SNES", f"ROM {i}", "", "", 2048, "", "", "", "zip") for i in range(30)]
-    helper._db.executemany("INSERT OR IGNORE INTO roms VALUES (?,?,?,?,?,?,?,?,?)", rows)
+    helper._db.executemany(
+        """
+        INSERT OR IGNORE INTO roms
+        (platform, name, source_id, file_path, size, md5, crc32, sha1, format)
+        VALUES (?,?,?,?,?,?,?,?,?)
+        """,
+        rows,
+    )
     helper._db.commit()
     return helper
 

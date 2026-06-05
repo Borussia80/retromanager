@@ -46,7 +46,11 @@ settings.update(("organize_by_platform", False))
 
 ROMS = [(f"Stress Platform", f"rom_{i:02d}") for i in range(12)]
 platforms._db.executemany(
-    "INSERT OR IGNORE INTO roms VALUES (?,?,?,?,?,?,?,?,?)",
+    """
+    INSERT OR IGNORE INTO roms
+    (platform, name, source_id, file_path, size, md5, crc32, sha1, format)
+    VALUES (?,?,?,?,?,?,?,?,?)
+    """,
     [(p, r, "stress-src", f"{r}.zip", 102400, "", "", "", "zip") for p, r in ROMS],
 )
 platforms._db.commit()
@@ -96,8 +100,10 @@ def _fake_download(self, platform: str, rom_name: str) -> str:
 
 # ─── Testa retry com delays zero para não esperar 5s+ ─────────────────────────
 
+import download_engine
 from download_engine import DownloadEngine
-DownloadEngine.RETRY_DELAYS = [0, 0, 0]
+
+download_engine._RETRY_DELAYS = [0, 0, 0]
 
 # ─── Wiring ───────────────────────────────────────────────────────────────────
 

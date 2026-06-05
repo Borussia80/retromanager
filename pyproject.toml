@@ -4,7 +4,7 @@ build-backend = "setuptools.backends.legacy:build"
 
 [project]
 name = "retromanager"
-version = "2.3.3"
+version = "2.3.12"
 description = "Linux desktop app to browse and download retro game ROMs from Archive.org"
 requires-python = ">=3.12"
 dependencies = [
