@@ -148,6 +148,8 @@ class RetroArchHelper(EmulatorPlugin):
             return False
         core = self.core_path(platform)
         cmd = [self._exe]
+        if self._config_dir:
+            cmd += ["-c", str(self._config_dir / "retroarch.cfg")]
         if core:
             cmd += ["-L", core]
         cmd.append(rom_path)

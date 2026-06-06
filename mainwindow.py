@@ -1,5 +1,6 @@
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 
@@ -1433,6 +1434,12 @@ class MainWindow(QMainWindow):
     def _onDownloadThreadFinished(self):
         self.downloads._on_thread_finished()
 
+    def _openUrl(self, url: str):
+        try:
+            subprocess.Popen(['xdg-open', url])
+        except (OSError, FileNotFoundError):
+            QDesktopServices.openUrl(QUrl(url))
+
     def _startAutoUpdate(self, url: str):
         appimage_path = os.environ.get('APPIMAGE', '')
         if not appimage_path:
@@ -1607,7 +1614,7 @@ class MainWindow(QMainWindow):
             if clicked == btn_install:
                 self._startAutoUpdate(appimage_url)
             elif clicked == btn_browser:
-                QDesktopServices.openUrl(QUrl(self._RELEASES_URL))
+                self._openUrl(self._RELEASES_URL)
                 self._update_available = False
                 self.statusbar_update.setText("Abrindo página de downloads…")
             else:
@@ -1619,7 +1626,7 @@ class MainWindow(QMainWindow):
                 "Deseja abrir a página de downloads no navegador?"
             )
             if ans == QMessageBox.StandardButton.Yes:
-                QDesktopServices.openUrl(QUrl(self._RELEASES_URL))
+                self._openUrl(self._RELEASES_URL)
                 self._update_available = False
                 self.statusbar_update.setText("Abrindo página de downloads…")
             else:
